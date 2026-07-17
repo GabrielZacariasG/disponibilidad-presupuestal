@@ -110,6 +110,7 @@ export default function Panel() {
         fin: v.fin ?? v.inicio ?? 0,
         variacion: (v.fin ?? v.inicio ?? 0) - (v.inicio || 0),
       }))
+     .filter((f) => f.variacion !== 0)
       .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion))
       .slice(0, 20);
   }, [datos, serieGrafica, metrica, catalogoPorCuenta]);
