@@ -1,0 +1,34 @@
+:root {
+  --imss-verde-oscuro: #173404;
+  --imss-verde: #27500A;
+  --imss-verde-claro: #EAF3DE;
+  --texto-secundario: #5f5e5a;
+  --borde: #d3d1c7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  background: #f7f7f5;
+  color: #1a1a1a;
+}
+
+input, select, button {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+input[type="date"], select {
+  padding: 6px 8px;
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  background: white;
+}
+
+button {
+  cursor: pointer;
+}
