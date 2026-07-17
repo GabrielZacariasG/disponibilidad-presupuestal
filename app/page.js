@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const METRICAS = [
   { valor: 'presupuesto', etiqueta: 'Presupuesto' },
@@ -13,6 +13,26 @@ const METRICAS = [
 
 function formatoMoneda(v) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(v || 0);
+}
+
+function TooltipLineas({ active, payload, label }) {
+  if (!active || !payload || payload.length === 0) return null;
+  return (
+    <div
+      style={{
+        background: 'white', border: '1px solid var(--borde)', borderRadius: 6,
+        padding: '8px 10px', fontSize: 12, maxWidth: 200,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+      }}
+    >
+      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>{label}</p>
+      {payload.map((p) => (
+        <p key={p.dataKey} style={{ margin: '2px 0', color: p.color }}>
+          {p.dataKey}: {formatoMoneda(p.value)}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export default function Panel() {
@@ -105,7 +125,7 @@ export default function Panel() {
 
   const lineasAGraficar = useMemo(() => {
     if (cuentasSeleccionadas.length > 0) return cuentasSeleccionadas;
-    return cuentasConVariacion.slice(0, 8).map((f) => f.cuenta);
+    return cuentasConVariacion.slice(0, 5).map((f) => f.cuenta);
   }, [cuentasSeleccionadas, cuentasConVariacion]);
 
   const serieGrafica = useMemo(() => {
@@ -119,6 +139,27 @@ export default function Panel() {
   }, [datos, lineasAGraficar, metrica]);
 
   const coloresLineas = ['#2a78d6', '#eda100', '#008300', '#e34948', '#4a3aa7', '#e87ba4', '#1baf7a', '#eb6834'];
+
+  const kpis = useMemo(() => {
+    const incrementos = cuentasConVariacion.filter((f) => f.variacion > 0);
+    const decrementos = cuentasConVariacion.filter((f) => f.variacion < 0);
+    const sumaIncrementos = incrementos.reduce((s, f) => s + f.variacion, 0);
+    const sumaDecrementos = decrementos.reduce((s, f) => s + f.variacion, 0);
+    return {
+      totalConVariacion: cuentasConVariacion.length,
+      incrementos: { count: incrementos.length, suma: sumaIncrementos },
+      decrementos: { count: decrementos.length, suma: sumaDecrementos },
+      neto: sumaIncrementos + sumaDecrementos,
+    };
+  }, [cuentasConVariacion]);
+
+  const datosBarras = useMemo(() => {
+    return cuentasConVariacion.slice(0, 10).map((f) => ({
+      etiqueta: f.cuenta,
+      descripcion: f.descripcion,
+      variacion: f.variacion,
+    }));
+  }, [cuentasConVariacion]);
 
   const detalleDiaADia = useMemo(() => {
     if (cuentasSeleccionadas.length !== 1) return [];
@@ -250,7 +291,7 @@ export default function Panel() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" />
               <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
-              <Tooltip formatter={(v) => formatoMoneda(v)} />
+              <Tooltip content={<TooltipLineas />} />
               <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => `${value} — ${catalogoPorCuenta[value]?.descripcion || ''}`} />
               {lineasAGraficar.map((linea, i) => (
                 <Line
@@ -264,6 +305,51 @@ export default function Panel() {
                 />
               ))}
             </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: '2rem' }}>
+          <div style={{ background: 'var(--imss-verde-claro)', borderRadius: 8, padding: '1rem' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--imss-verde-oscuro)' }}>Cuentas con incremento</p>
+            <p style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--imss-verde-oscuro)' }}>{kpis.incrementos.count}</p>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--imss-verde-oscuro)' }}>{formatoMoneda(kpis.incrementos.suma)}</p>
+          </div>
+          <div style={{ background: '#FAECE7', borderRadius: 8, padding: '1rem' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: '#712B13' }}>Cuentas con decremento</p>
+            <p style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#712B13' }}>{kpis.decrementos.count}</p>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#712B13' }}>{formatoMoneda(kpis.decrementos.suma)}</p>
+          </div>
+          <div style={{ background: '#f0f0ee', borderRadius: 8, padding: '1rem' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--texto-secundario)' }}>Cuentas con movimiento</p>
+            <p style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{kpis.totalConVariacion}</p>
+          </div>
+          <div style={{ background: '#f0f0ee', borderRadius: 8, padding: '1rem' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--texto-secundario)' }}>Variación neta</p>
+            <p style={{ margin: 0, fontSize: 24, fontWeight: 700, color: kpis.neto < 0 ? '#A32D2D' : kpis.neto > 0 ? '#27500A' : 'inherit' }}>
+              {formatoMoneda(kpis.neto)}
+            </p>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto-secundario)', margin: '0 0 8px' }}>
+          Mayor movimiento (top 10)
+        </p>
+        <div style={{ height: Math.max(220, datosBarras.length * 32), marginBottom: '2rem' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={datosBarras} layout="vertical" margin={{ left: 10, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
+              <YAxis type="category" dataKey="etiqueta" tick={{ fontSize: 11 }} width={80} />
+              <Tooltip
+                formatter={(v) => formatoMoneda(v)}
+                labelFormatter={(label) => `${label} — ${catalogoPorCuenta[label]?.descripcion || ''}`}
+              />
+              <Bar dataKey="variacion" radius={[0, 4, 4, 0]}>
+                {datosBarras.map((d, i) => (
+                  <Cell key={i} fill={d.variacion < 0 ? '#E24B4A' : '#639922'} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
 
