@@ -128,7 +128,10 @@ export default function Panel() {
     return cuentasConVariacion;
   }, [cuentasConVariacion, filtroSigno]);
 
-  const tablaResumen = useMemo(() => cuentasFiltradasPorSigno.slice(0, 20), [cuentasFiltradasPorSigno]);
+  const tablaResumen = useMemo(() => {
+    if (filtroSigno === 'todos') return cuentasFiltradasPorSigno.slice(0, 20);
+    return cuentasFiltradasPorSigno;
+  }, [cuentasFiltradasPorSigno, filtroSigno]);
 
   const lineasAGraficar = useMemo(() => {
     if (cuentasSeleccionadas.length > 0) return cuentasSeleccionadas;
@@ -364,7 +367,7 @@ export default function Panel() {
         {filtroSigno === 'todos' && <div style={{ marginBottom: '2rem' }} />}
 
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto-secundario)', margin: '0 0 8px' }}>
-          Mayor movimiento (top 10)
+          Mayor movimiento (top {Math.min(10, cuentasFiltradasPorSigno.length)} de {cuentasFiltradasPorSigno.length})
         </p>
         <div style={{ height: Math.max(220, datosBarras.length * 32), marginBottom: '2rem' }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -386,7 +389,7 @@ export default function Panel() {
         </div>
 
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto-secundario)', margin: '0 0 8px' }}>
-          Cuentas con mayor variación en el rango (top 20)
+          Cuentas con mayor variación en el rango ({tablaResumen.length === cuentasFiltradasPorSigno.length ? `${tablaResumen.length} cuentas` : `top ${tablaResumen.length} de ${cuentasFiltradasPorSigno.length}`})
         </p>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
