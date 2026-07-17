@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const METRICAS = [
   { valor: 'presupuesto', etiqueta: 'Presupuesto' },
@@ -75,27 +75,14 @@ export default function Panel() {
     return m;
   }, [cuentas]);
 
-  const serieGrafica = useMemo(() => {
-    const cuentasAMostrar = cuentasSeleccionadas.length > 0 ? cuentasSeleccionadas : null;
-    const porFecha = {};
-    datos.forEach((fila) => {
-      if (cuentasAMostrar && !cuentasAMostrar.includes(fila.cuenta)) return;
-      if (!porFecha[fila.fecha]) porFecha[fila.fecha] = { fecha: fila.fecha };
-      if (cuentasAMostrar) {
-        porFecha[fila.fecha][fila.cuenta] = (porFecha[fila.fecha][fila.cuenta] || 0) + fila[metrica];
-      } else {
-        porFecha[fila.fecha].total = (porFecha[fila.fecha].total || 0) + fila[metrica];
-      }
-    });
-    return Object.values(porFecha).sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
-  }, [datos, cuentasSeleccionadas, metrica]);
+  const fechasOrdenadas = useMemo(() => {
+    const set = new Set(datos.map((f) => f.fecha));
+    return Array.from(set).sort();
+  }, [datos]);
 
-  const lineasAGraficar = cuentasSeleccionadas.length > 0 ? cuentasSeleccionadas : ['total'];
-  const coloresLineas = ['#2a78d6', '#eda100', '#008300', '#e34948', '#4a3aa7', '#e87ba4', '#1baf7a', '#eb6834'];
-
-  const tablaResumen = useMemo(() => {
-    const primeraFecha = serieGrafica[0]?.fecha;
-    const ultimaFecha = serieGrafica[serieGrafica.length - 1]?.fecha;
+  const cuentasConVariacion = useMemo(() => {
+    const primeraFecha = fechasOrdenadas[0];
+    const ultimaFecha = fechasOrdenadas[fechasOrdenadas.length - 1];
     const porCuenta = {};
     datos.forEach((fila) => {
       if (!porCuenta[fila.cuenta]) porCuenta[fila.cuenta] = {};
@@ -110,10 +97,28 @@ export default function Panel() {
         fin: v.fin ?? v.inicio ?? 0,
         variacion: (v.fin ?? v.inicio ?? 0) - (v.inicio || 0),
       }))
-     .filter((f) => f.variacion !== 0)
-      .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion))
-      .slice(0, 20);
-  }, [datos, serieGrafica, metrica, catalogoPorCuenta]);
+      .filter((f) => f.variacion !== 0)
+      .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
+  }, [datos, fechasOrdenadas, metrica, catalogoPorCuenta]);
+
+  const tablaResumen = useMemo(() => cuentasConVariacion.slice(0, 20), [cuentasConVariacion]);
+
+  const lineasAGraficar = useMemo(() => {
+    if (cuentasSeleccionadas.length > 0) return cuentasSeleccionadas;
+    return cuentasConVariacion.slice(0, 8).map((f) => f.cuenta);
+  }, [cuentasSeleccionadas, cuentasConVariacion]);
+
+  const serieGrafica = useMemo(() => {
+    const porFecha = {};
+    datos.forEach((fila) => {
+      if (!lineasAGraficar.includes(fila.cuenta)) return;
+      if (!porFecha[fila.fecha]) porFecha[fila.fecha] = { fecha: fila.fecha };
+      porFecha[fila.fecha][fila.cuenta] = (porFecha[fila.fecha][fila.cuenta] || 0) + fila[metrica];
+    });
+    return Object.values(porFecha).sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
+  }, [datos, lineasAGraficar, metrica]);
+
+  const coloresLineas = ['#2a78d6', '#eda100', '#008300', '#e34948', '#4a3aa7', '#e87ba4', '#1baf7a', '#eb6834'];
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: '3rem' }}>
@@ -152,7 +157,7 @@ export default function Panel() {
 
         <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>
-            Buscar cuenta ({cuentasSeleccionadas.length} seleccionada{cuentasSeleccionadas.length !== 1 ? 's' : ''} — vacío = total de todas)
+            Buscar cuenta ({cuentasSeleccionadas.length} seleccionada{cuentasSeleccionadas.length !== 1 ? 's' : ''} — vacío = cuentas con más movimiento)
           </label>
           <input
             type="text"
@@ -225,12 +230,13 @@ export default function Panel() {
               <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
               <Tooltip formatter={(v) => formatoMoneda(v)} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => `${value} — ${catalogoPorCuenta[value]?.descripcion || ''}`} />
               {lineasAGraficar.map((linea, i) => (
                 <Line
                   key={linea}
                   type="monotone"
                   dataKey={linea}
-                  name={linea === 'total' ? 'Total' : `${linea} — ${catalogoPorCuenta[linea]?.descripcion || ''}`}
+                  name={`${linea} — ${catalogoPorCuenta[linea]?.descripcion || ''}`}
                   stroke={coloresLineas[i % coloresLineas.length]}
                   strokeWidth={2}
                   dot={{ r: 3 }}
