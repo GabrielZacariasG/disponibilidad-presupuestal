@@ -45,6 +45,7 @@ export default function Panel() {
   const [cargando, setCargando] = useState(false);
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [error, setError] = useState(null);
+  const [filtroSigno, setFiltroSigno] = useState('todos');
 
   useEffect(() => {
     fetch('/api/cuentas')
@@ -121,7 +122,13 @@ export default function Panel() {
       .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
   }, [datos, fechasOrdenadas, metrica, catalogoPorCuenta]);
 
-  const tablaResumen = useMemo(() => cuentasConVariacion.slice(0, 20), [cuentasConVariacion]);
+  const cuentasFiltradasPorSigno = useMemo(() => {
+    if (filtroSigno === 'incremento') return cuentasConVariacion.filter((f) => f.variacion > 0);
+    if (filtroSigno === 'decremento') return cuentasConVariacion.filter((f) => f.variacion < 0);
+    return cuentasConVariacion;
+  }, [cuentasConVariacion, filtroSigno]);
+
+  const tablaResumen = useMemo(() => cuentasFiltradasPorSigno.slice(0, 20), [cuentasFiltradasPorSigno]);
 
   const lineasAGraficar = useMemo(() => {
     if (cuentasSeleccionadas.length > 0) return cuentasSeleccionadas;
@@ -154,12 +161,12 @@ export default function Panel() {
   }, [cuentasConVariacion]);
 
   const datosBarras = useMemo(() => {
-    return cuentasConVariacion.slice(0, 10).map((f) => ({
+    return cuentasFiltradasPorSigno.slice(0, 10).map((f) => ({
       etiqueta: f.cuenta,
       descripcion: f.descripcion,
       variacion: f.variacion,
     }));
-  }, [cuentasConVariacion]);
+  }, [cuentasFiltradasPorSigno]);
 
   const detalleDiaADia = useMemo(() => {
     if (cuentasSeleccionadas.length !== 1) return [];
@@ -308,13 +315,25 @@ export default function Panel() {
           </ResponsiveContainer>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: '2rem' }}>
-          <div style={{ background: 'var(--imss-verde-claro)', borderRadius: 8, padding: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: '0.5rem' }}>
+          <div
+            onClick={() => setFiltroSigno(filtroSigno === 'incremento' ? 'todos' : 'incremento')}
+            style={{
+              background: 'var(--imss-verde-claro)', borderRadius: 8, padding: '1rem', cursor: 'pointer',
+              border: filtroSigno === 'incremento' ? '2px solid var(--imss-verde)' : '2px solid transparent',
+            }}
+          >
             <p style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--imss-verde-oscuro)' }}>Cuentas con incremento</p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--imss-verde-oscuro)' }}>{kpis.incrementos.count}</p>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--imss-verde-oscuro)' }}>{formatoMoneda(kpis.incrementos.suma)}</p>
           </div>
-          <div style={{ background: '#FAECE7', borderRadius: 8, padding: '1rem' }}>
+          <div
+            onClick={() => setFiltroSigno(filtroSigno === 'decremento' ? 'todos' : 'decremento')}
+            style={{
+              background: '#FAECE7', borderRadius: 8, padding: '1rem', cursor: 'pointer',
+              border: filtroSigno === 'decremento' ? '2px solid #D85A30' : '2px solid transparent',
+            }}
+          >
             <p style={{ margin: '0 0 6px', fontSize: 12, color: '#712B13' }}>Cuentas con decremento</p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#712B13' }}>{kpis.decrementos.count}</p>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#712B13' }}>{formatoMoneda(kpis.decrementos.suma)}</p>
@@ -330,6 +349,19 @@ export default function Panel() {
             </p>
           </div>
         </div>
+
+        {filtroSigno !== 'todos' && (
+          <p style={{ fontSize: 12, color: 'var(--texto-secundario)', margin: '0 0 1.5rem' }}>
+            Filtrando por: {filtroSigno === 'incremento' ? 'cuentas con incremento' : 'cuentas con decremento'} —{' '}
+            <span
+              onClick={() => setFiltroSigno('todos')}
+              style={{ color: 'var(--imss-verde)', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              quitar filtro
+            </span>
+          </p>
+        )}
+        {filtroSigno === 'todos' && <div style={{ marginBottom: '2rem' }} />}
 
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto-secundario)', margin: '0 0 8px' }}>
           Mayor movimiento (top 10)
