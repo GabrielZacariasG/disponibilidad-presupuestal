@@ -160,6 +160,37 @@ export default function Panel() {
             onChange={(e) => setBusquedaCuenta(e.target.value)}
             style={{ width: '100%', maxWidth: 400 }}
           />
+
+          {cuentasSeleccionadas.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
+              {cuentasSeleccionadas.map((cuenta) => (
+                <span
+                  key={cuenta}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'var(--imss-verde-claro)', color: 'var(--imss-verde-oscuro)',
+                    padding: '4px 8px', borderRadius: 4, fontSize: 12,
+                  }}
+                >
+                  {cuenta} — {catalogoPorCuenta[cuenta]?.descripcion || ''}
+                  <span
+                    onClick={() => alternarCuenta(cuenta)}
+                    style={{ cursor: 'pointer', fontWeight: 700, paddingLeft: 2 }}
+                    title="Quitar"
+                  >
+                    ×
+                  </span>
+                </span>
+              ))}
+              <button
+                onClick={() => setCuentasSeleccionadas([])}
+                style={{ fontSize: 12, padding: '4px 10px' }}
+              >
+                Ver todas (quitar selección)
+              </button>
+            </div>
+          )}
+
           {busquedaCuenta && (
             <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--borde)', borderRadius: 4, marginTop: 6, background: 'white' }}>
               {cuentasFiltradas.slice(0, 30).map((c) => (
