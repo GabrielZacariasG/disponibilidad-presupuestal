@@ -198,10 +198,13 @@ export default function Panel() {
         <div style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--imss-verde-claro)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13, color: 'var(--imss-verde-oscuro)', flexShrink: 0 }}>
           IMSS
         </div>
-        <div>
+       <div>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--imss-verde-claro)' }}>Hospital General de Zona No. 02</p>
           <p style={{ margin: 0, fontSize: 12, color: '#C0DD97' }}>Departamento de Finanzas · Oficina de Presupuesto</p>
         </div>
+        <a href="/cargar" style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--imss-verde-claro)', textDecoration: 'underline' }}>
+          Cargar disponibilidad del día
+        </a>
       </div>
 
       <div style={{ padding: '1.5rem' }}>
