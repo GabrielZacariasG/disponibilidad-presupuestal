@@ -46,6 +46,7 @@ export default function Panel() {
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [error, setError] = useState(null);
   const [filtroSigno, setFiltroSigno] = useState('todos');
+  const [comentarios, setComentarios] = useState({});
 
   useEffect(() => {
     fetch('/api/cuentas')
@@ -71,6 +72,25 @@ export default function Panel() {
       })
       .catch((e) => setError('No se pudieron cargar los datos: ' + e.message))
       .finally(() => setCargando(false));
+
+    fetch(`/api/comentarios?desde=${d}&hasta=${h}&metrica=${metrica}`)
+      .then((r) => r.json())
+      .then((lista) => {
+        if (lista.error) return;
+        const mapa = {};
+        lista.forEach((c) => (mapa[c.cuenta] = c.comentario));
+        setComentarios(mapa);
+      })
+      .catch(() => {});
+  }
+
+  function guardarComentario(cuenta, texto) {
+    setComentarios((prev) => ({ ...prev, [cuenta]: texto }));
+    fetch('/api/comentarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cuenta, metrica, desde, hasta, comentario: texto }),
+    }).catch((e) => setError('No se pudo guardar el comentario: ' + e.message));
   }
 
   useEffect(() => {
@@ -412,6 +432,7 @@ export default function Panel() {
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>{desde}</th>
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>{hasta}</th>
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Variación</th>
+              <th style={{ textAlign: 'left', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Comentario</th>
             </tr>
           </thead>
           <tbody>
@@ -422,6 +443,15 @@ export default function Panel() {
                 <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(fila.fin)}</td>
                 <td style={{ padding: '8px 4px', textAlign: 'right', color: fila.variacion < 0 ? '#A32D2D' : fila.variacion > 0 ? '#27500A' : 'inherit' }}>
                   {formatoMoneda(fila.variacion)}
+                </td>
+                <td style={{ padding: '8px 4px' }}>
+                  <input
+                    type="text"
+                    placeholder="¿A qué se debe?"
+                    defaultValue={comentarios[fila.cuenta] || ''}
+                    onBlur={(e) => guardarComentario(fila.cuenta, e.target.value)}
+                    style={{ width: '100%', minWidth: 160, fontSize: 12, padding: '4px 6px' }}
+                  />
                 </td>
               </tr>
             ))}
