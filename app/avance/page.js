@@ -20,7 +20,6 @@ export default function AvancePresupuestal() {
   const [datosDia, setDatosDia] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
-  const [capituloSel, setCapituloSel] = useState('');
   const [tipoSel, setTipoSel] = useState('');
   const [cuentaSel, setCuentaSel] = useState('');
 
@@ -57,11 +56,13 @@ export default function AvancePresupuestal() {
     // eslint-disable-next-line
   }, []);
 
+  const cuentasClasificadas = useMemo(() => cuentas.filter((c) => c.tipo), [cuentas]);
+
   const catalogoPorCuenta = useMemo(() => {
     const m = {};
-    cuentas.forEach((c) => (m[c.cuenta] = c));
+    cuentasClasificadas.forEach((c) => (m[c.cuenta] = c));
     return m;
-  }, [cuentas]);
+  }, [cuentasClasificadas]);
 
   const datosPorCuenta = useMemo(() => {
     const m = {};
@@ -69,22 +70,16 @@ export default function AvancePresupuestal() {
     return m;
   }, [datosDia]);
 
-  const capitulosDisponibles = useMemo(
-    () => Array.from(new Set(cuentas.map((c) => c.capitulo).filter(Boolean))).sort(),
-    [cuentas]
+  const tiposDisponibles = useMemo(
+    () => Array.from(new Set(cuentasClasificadas.map((c) => c.tipo))).sort(),
+    [cuentasClasificadas]
   );
 
-  const tiposDisponibles = useMemo(() => {
-    const base = capituloSel ? cuentas.filter((c) => c.capitulo === capituloSel) : cuentas;
-    return Array.from(new Set(base.map((c) => c.tipo).filter(Boolean))).sort();
-  }, [cuentas, capituloSel]);
-
   const cuentasDisponibles = useMemo(() => {
-    let base = cuentas;
-    if (capituloSel) base = base.filter((c) => c.capitulo === capituloSel);
+    let base = cuentasClasificadas;
     if (tipoSel) base = base.filter((c) => c.tipo === tipoSel);
     return base.slice().sort((a, b) => a.cuenta.localeCompare(b.cuenta));
-  }, [cuentas, capituloSel, tipoSel]);
+  }, [cuentasClasificadas, tipoSel]);
 
   function sumar(lista) {
     let presupuesto = 0, gasto = 0, comprometido = 0, precomprometido = 0, disponible = 0;
@@ -114,18 +109,11 @@ export default function AvancePresupuestal() {
         ...sumar([c.cuenta]),
       }));
     }
-    if (capituloSel) {
-      const tipos = Array.from(new Set(cuentas.filter((c) => c.capitulo === capituloSel).map((c) => c.tipo)));
-      return tipos.sort().map((tipo) => {
-        const cuentasDelTipo = cuentas.filter((c) => c.capitulo === capituloSel && c.tipo === tipo).map((c) => c.cuenta);
-        return { nombre: tipo, ...sumar(cuentasDelTipo) };
-      });
-    }
-    return capitulosDisponibles.map((cap) => {
-      const cuentasDelCap = cuentas.filter((c) => c.capitulo === cap).map((c) => c.cuenta);
-      return { nombre: `Capítulo ${cap}`, ...sumar(cuentasDelCap) };
+    return tiposDisponibles.map((tipo) => {
+      const cuentasDelTipo = cuentasClasificadas.filter((c) => c.tipo === tipo).map((c) => c.cuenta);
+      return { nombre: tipo, ...sumar(cuentasDelTipo) };
     });
-  }, [cuentaSel, tipoSel, capituloSel, cuentasDisponibles, cuentas, capitulosDisponibles, datosPorCuenta, catalogoPorCuenta]);
+  }, [cuentaSel, tipoSel, cuentasDisponibles, cuentasClasificadas, tiposDisponibles, datosPorCuenta, catalogoPorCuenta]);
 
   const totalGeneral = useMemo(() => {
     const universo = cuentaSel ? [cuentaSel] : cuentasDisponibles.map((c) => c.cuenta);
@@ -157,22 +145,12 @@ export default function AvancePresupuestal() {
             <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Corte al</label>
             <input type="date" value={fechaCorte} onChange={(e) => setFechaCorte(e.target.value)} />
           </div>
-         <button onClick={() => buscar()} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
+          <button onClick={() => buscar()} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
             {cargando ? 'Cargando...' : 'Consultar'}
           </button>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: '1.5rem' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Capítulo</label>
-            <select
-              value={capituloSel}
-              onChange={(e) => { setCapituloSel(e.target.value); setTipoSel(''); setCuentaSel(''); }}
-            >
-              <option value="">Todos</option>
-              {capitulosDisponibles.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
           <div>
             <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Tipo</label>
             <select
@@ -210,7 +188,7 @@ export default function AvancePresupuestal() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--borde)' }}>
               <th style={{ textAlign: 'left', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>
-                {cuentaSel ? 'Cuenta' : tipoSel ? 'Cuenta' : capituloSel ? 'Tipo' : 'Capítulo'}
+                {tipoSel || cuentaSel ? 'Cuenta' : 'Tipo'}
               </th>
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Presupuesto</th>
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Gasto</th>
@@ -231,8 +209,7 @@ export default function AvancePresupuestal() {
                 onClick={() => {
                   if (cuentaSel) return;
                   if (tipoSel) { setCuentaSel(f.nombre.split(' — ')[0]); return; }
-                  if (capituloSel) { setTipoSel(f.nombre); return; }
-                  setCapituloSel(f.nombre.replace('Capítulo ', ''));
+                  setTipoSel(f.nombre);
                 }}
               >
                 <td style={{ padding: '8px 4px' }}>{f.nombre}</td>
@@ -262,7 +239,7 @@ export default function AvancePresupuestal() {
 
         {!cuentaSel && (
           <p style={{ fontSize: 11, color: 'var(--texto-secundario)', marginTop: 10 }}>
-            Clic en una fila para bajar de nivel {capituloSel ? '(Tipo → Cuenta)' : '(Capítulo → Tipo)'}.
+            Clic en una fila para bajar de nivel {tipoSel ? '' : '(Tipo → Cuenta)'}.
           </p>
         )}
       </div>
