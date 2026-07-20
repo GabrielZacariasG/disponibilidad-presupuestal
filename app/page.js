@@ -47,6 +47,8 @@ export default function Panel() {
   const [error, setError] = useState(null);
   const [filtroSigno, setFiltroSigno] = useState('todos');
   const [comentarios, setComentarios] = useState({});
+  const [editandoCuenta, setEditandoCuenta] = useState(null);
+  const [textoTemp, setTextoTemp] = useState('');
 
   useEffect(() => {
     fetch('/api/cuentas')
@@ -86,6 +88,7 @@ export default function Panel() {
 
   function guardarComentario(cuenta, texto) {
     setComentarios((prev) => ({ ...prev, [cuenta]: texto }));
+    setEditandoCuenta(null);
     fetch('/api/comentarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -445,13 +448,37 @@ export default function Panel() {
                   {formatoMoneda(fila.variacion)}
                 </td>
                 <td style={{ padding: '8px 4px' }}>
-                  <input
-                    type="text"
-                    placeholder="¿A qué se debe?"
-                    defaultValue={comentarios[fila.cuenta] || ''}
-                    onBlur={(e) => guardarComentario(fila.cuenta, e.target.value)}
-                    style={{ width: '100%', minWidth: 160, fontSize: 12, padding: '4px 6px' }}
-                  />
+                  {editandoCuenta === fila.cuenta ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="¿A qué se debe?"
+                        value={textoTemp}
+                        onChange={(e) => setTextoTemp(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') guardarComentario(fila.cuenta, textoTemp); }}
+                        style={{ width: '100%', minWidth: 140, fontSize: 12, padding: '4px 6px' }}
+                      />
+                      <button
+                        onClick={() => guardarComentario(fila.cuenta, textoTemp)}
+                        style={{ fontSize: 11, padding: '4px 8px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4, whiteSpace: 'nowrap' }}
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ color: comentarios[fila.cuenta] ? 'inherit' : 'var(--texto-secundario)', fontStyle: comentarios[fila.cuenta] ? 'normal' : 'italic' }}>
+                        {comentarios[fila.cuenta] || 'Sin comentario'}
+                      </span>
+                      <button
+                        onClick={() => { setEditandoCuenta(fila.cuenta); setTextoTemp(comentarios[fila.cuenta] || ''); }}
+                        style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}
+                      >
+                        Editar
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
