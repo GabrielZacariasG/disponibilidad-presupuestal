@@ -157,7 +157,7 @@ export default function AvancePresupuestal() {
             <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Corte al</label>
             <input type="date" value={fechaCorte} onChange={(e) => setFechaCorte(e.target.value)} />
           </div>
-          <button onClick={buscar} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
+         <button onClick={() => buscar()} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
             {cargando ? 'Cargando...' : 'Consultar'}
           </button>
         </div>
