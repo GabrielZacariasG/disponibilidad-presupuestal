@@ -46,6 +46,9 @@ export default function Panel() {
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [error, setError] = useState(null);
   const [filtroSigno, setFiltroSigno] = useState('todos');
+  const [capituloAvance, setCapituloAvance] = useState('');
+  const [tipoAvance, setTipoAvance] = useState('');
+  const [cuentaAvance, setCuentaAvance] = useState('');
 
   useEffect(() => {
     fetch('/api/cuentas')
@@ -171,6 +174,47 @@ export default function Panel() {
     }));
   }, [cuentasFiltradasPorSigno]);
 
+  const capitulosDisponibles = useMemo(() => {
+    return Array.from(new Set(cuentas.map((c) => c.capitulo).filter(Boolean))).sort();
+  }, [cuentas]);
+
+  const tiposDisponibles = useMemo(() => {
+    const base = capituloAvance ? cuentas.filter((c) => c.capitulo === capituloAvance) : cuentas;
+    return Array.from(new Set(base.map((c) => c.tipo).filter(Boolean))).sort();
+  }, [cuentas, capituloAvance]);
+
+  const cuentasAvanceDisponibles = useMemo(() => {
+    let base = cuentas;
+    if (capituloAvance) base = base.filter((c) => c.capitulo === capituloAvance);
+    if (tipoAvance) base = base.filter((c) => c.tipo === tipoAvance);
+    return base.sort((a, b) => a.cuenta.localeCompare(b.cuenta));
+  }, [cuentas, capituloAvance, tipoAvance]);
+
+  const avancePresupuestal = useMemo(() => {
+    const cuentasObjetivo = new Set(cuentaAvance ? [cuentaAvance] : cuentasAvanceDisponibles.map((c) => c.cuenta));
+    const fechasConDatos = Array.from(new Set(datos.map((f) => f.fecha))).filter((f) => f <= hasta).sort();
+    const fechaCorte = fechasConDatos[fechasConDatos.length - 1];
+    if (!fechaCorte) return null;
+
+    let presupuesto = 0, gasto = 0, comprometido = 0;
+    datos.forEach((fila) => {
+      if (fila.fecha !== fechaCorte) return;
+      if (!cuentasObjetivo.has(fila.cuenta)) return;
+      presupuesto += fila.presupuesto;
+      gasto += fila.gasto;
+      comprometido += fila.comprometido;
+    });
+
+    return {
+      fechaCorte,
+      presupuesto,
+      gasto,
+      comprometido,
+      avanceGastoPresupuesto: presupuesto !== 0 ? (gasto / presupuesto) * 100 : null,
+      avanceGastoComprometido: comprometido !== 0 ? (gasto / comprometido) * 100 : null,
+    };
+  }, [datos, cuentasAvanceDisponibles, cuentaAvance, hasta]);
+
   const detalleDiaADia = useMemo(() => {
     if (cuentasSeleccionadas.length !== 1) return [];
     const cuenta = cuentasSeleccionadas[0];
@@ -198,7 +242,7 @@ export default function Panel() {
         <div style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--imss-verde-claro)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13, color: 'var(--imss-verde-oscuro)', flexShrink: 0 }}>
           IMSS
         </div>
-       <div>
+        <div>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--imss-verde-claro)' }}>Hospital General de Zona No. 02</p>
           <p style={{ margin: 0, fontSize: 12, color: '#C0DD97' }}>Departamento de Finanzas · Oficina de Presupuesto</p>
         </div>
@@ -320,6 +364,94 @@ export default function Panel() {
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--imss-verde-oscuro)', margin: '0 0 10px' }}>
+          Avance Presupuestal
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: '1rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Capítulo</label>
+            <select
+              value={capituloAvance}
+              onChange={(e) => { setCapituloAvance(e.target.value); setTipoAvance(''); setCuentaAvance(''); }}
+            >
+              <option value="">Todos</option>
+              {capitulosDisponibles.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Tipo</label>
+            <select
+              value={tipoAvance}
+              onChange={(e) => { setTipoAvance(e.target.value); setCuentaAvance(''); }}
+            >
+              <option value="">Todos</option>
+              {tiposDisponibles.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Cuenta</label>
+            <select value={cuentaAvance} onChange={(e) => setCuentaAvance(e.target.value)}>
+              <option value="">Todas ({cuentasAvanceDisponibles.length})</option>
+              {cuentasAvanceDisponibles.map((c) => (
+                <option key={c.cuenta} value={c.cuenta}>{c.cuenta} — {c.descripcion}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {!avancePresupuestal && (
+          <p style={{ fontSize: 12, color: 'var(--texto-secundario)', marginBottom: '2rem' }}>
+            No hay datos cargados para esta selección en el rango de fechas actual.
+          </p>
+        )}
+
+        {avancePresupuestal && (
+          <div style={{ marginBottom: '2rem' }}>
+            <p style={{ fontSize: 11, color: 'var(--texto-secundario)', margin: '0 0 10px' }}>
+              Corte al {avancePresupuestal.fechaCorte}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div style={{ background: '#f0f0ee', borderRadius: 8, padding: '1rem' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--texto-secundario)' }}>
+                  % Avance: Gasto vs Presupuesto
+                </p>
+                <p style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 700, color: 'var(--imss-verde-oscuro)' }}>
+                  {avancePresupuestal.avanceGastoPresupuesto === null ? 'N/A' : `${avancePresupuestal.avanceGastoPresupuesto.toFixed(1)}%`}
+                </p>
+                <div style={{ height: 8, background: '#e1e0d9', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{
+                    height: '100%', borderRadius: 4,
+                    width: `${Math.min(100, Math.max(0, avancePresupuestal.avanceGastoPresupuesto || 0))}%`,
+                    background: (avancePresupuestal.avanceGastoPresupuesto || 0) > 100 ? '#A32D2D' : 'var(--imss-verde)',
+                  }} />
+                </div>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--texto-secundario)' }}>
+                  Gasto: {formatoMoneda(avancePresupuestal.gasto)} de {formatoMoneda(avancePresupuestal.presupuesto)}
+                </p>
+              </div>
+
+              <div style={{ background: '#f0f0ee', borderRadius: 8, padding: '1rem' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--texto-secundario)' }}>
+                  % Avance: Gasto vs Comprometido
+                </p>
+                <p style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 700, color: 'var(--imss-verde-oscuro)' }}>
+                  {avancePresupuestal.avanceGastoComprometido === null ? 'N/A' : `${avancePresupuestal.avanceGastoComprometido.toFixed(1)}%`}
+                </p>
+                <div style={{ height: 8, background: '#e1e0d9', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{
+                    height: '100%', borderRadius: 4,
+                    width: `${Math.min(100, Math.max(0, avancePresupuestal.avanceGastoComprometido || 0))}%`,
+                    background: (avancePresupuestal.avanceGastoComprometido || 0) > 100 ? '#A32D2D' : 'var(--imss-verde)',
+                  }} />
+                </div>
+                <p style={{ margin: 0, fontSize: 11, color: 'var(--texto-secundario)' }}>
+                  Gasto: {formatoMoneda(avancePresupuestal.gasto)} de comprometido {formatoMoneda(avancePresupuestal.comprometido)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: '0.5rem' }}>
           <div
