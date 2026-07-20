@@ -46,6 +46,7 @@ export default function Panel() {
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [error, setError] = useState(null);
   const [filtroSigno, setFiltroSigno] = useState('todos');
+  const [tipoFiltro, setTipoFiltro] = useState('');
   const [comentarios, setComentarios] = useState({});
   const [editandoCuenta, setEditandoCuenta] = useState(null);
   const [textoTemp, setTextoTemp] = useState('');
@@ -114,10 +115,12 @@ export default function Panel() {
   const cuentasFiltradas = useMemo(() => {
     if (!busquedaCuenta) return [];
     const q = busquedaCuenta.toLowerCase();
-    return cuentas.filter(
+    let base = cuentas;
+    if (tipoFiltro) base = base.filter((c) => c.tipo === tipoFiltro);
+    return base.filter(
       (c) => c.cuenta.includes(q) || (c.descripcion || '').toLowerCase().includes(q)
     );
-  }, [cuentas, busquedaCuenta]);
+  }, [cuentas, busquedaCuenta, tipoFiltro]);
 
   function alternarCuenta(cuenta) {
     setCuentasSeleccionadas((prev) =>
@@ -136,11 +139,17 @@ export default function Panel() {
     return Array.from(set).sort();
   }, [datos]);
 
+  const tiposDisponibles = useMemo(
+    () => Array.from(new Set(cuentas.map((c) => c.tipo).filter(Boolean))).sort(),
+    [cuentas]
+  );
+
   const cuentasConVariacion = useMemo(() => {
     const primeraFecha = fechasOrdenadas[0];
     const ultimaFecha = fechasOrdenadas[fechasOrdenadas.length - 1];
     const porCuenta = {};
     datos.forEach((fila) => {
+      if (tipoFiltro && catalogoPorCuenta[fila.cuenta]?.tipo !== tipoFiltro) return;
       if (!porCuenta[fila.cuenta]) porCuenta[fila.cuenta] = {};
       if (fila.fecha === primeraFecha) porCuenta[fila.cuenta].inicio = fila[metrica];
       if (fila.fecha === ultimaFecha) porCuenta[fila.cuenta].fin = fila[metrica];
@@ -155,7 +164,7 @@ export default function Panel() {
       }))
       .filter((f) => f.variacion !== 0)
       .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
-  }, [datos, fechasOrdenadas, metrica, catalogoPorCuenta]);
+  }, [datos, fechasOrdenadas, metrica, catalogoPorCuenta, tipoFiltro]);
 
   const cuentasFiltradasPorSigno = useMemo(() => {
     if (filtroSigno === 'incremento') return cuentasConVariacion.filter((f) => f.variacion > 0);
@@ -184,6 +193,33 @@ export default function Panel() {
   }, [datos, lineasAGraficar, metrica]);
 
   const coloresLineas = ['#2a78d6', '#eda100', '#008300', '#e34948', '#4a3aa7', '#e87ba4', '#1baf7a', '#eb6834'];
+
+  const modoMensual = useMemo(() => {
+    if (!desde || !hasta) return false;
+    const dias = (new Date(hasta) - new Date(desde)) / 86400000;
+    return dias > 31;
+  }, [desde, hasta]);
+
+  const serieMensual = useMemo(() => {
+    if (!modoMensual) return [];
+    const porMesCuenta = {};
+    datos.forEach((fila) => {
+      if (!lineasAGraficar.includes(fila.cuenta)) return;
+      const mes = fila.fecha.slice(0, 7);
+      if (!porMesCuenta[mes]) porMesCuenta[mes] = {};
+      const actual = porMesCuenta[mes][fila.cuenta];
+      if (!actual || fila.fecha > actual.fecha) {
+        porMesCuenta[mes][fila.cuenta] = { fecha: fila.fecha, valor: fila[metrica] };
+      }
+    });
+    return Object.keys(porMesCuenta).sort().map((mes) => {
+      const fila = { mes };
+      lineasAGraficar.forEach((c) => {
+        fila[c] = porMesCuenta[mes][c]?.valor ?? 0;
+      });
+      return fila;
+    });
+  }, [datos, modoMensual, lineasAGraficar, metrica]);
 
   const kpis = useMemo(() => {
     const incrementos = cuentasConVariacion.filter((f) => f.variacion > 0);
@@ -260,6 +296,13 @@ export default function Panel() {
               ))}
             </select>
           </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--texto-secundario)', marginBottom: 4 }}>Tipo</label>
+            <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)}>
+              <option value="">Todos</option>
+              {tiposDisponibles.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
           <button onClick={() => buscarDatos()} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
             {cargando ? 'Cargando...' : 'Filtrar'}
           </button>
@@ -332,27 +375,41 @@ export default function Panel() {
 
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto-secundario)', margin: '0 0 8px' }}>
           {METRICAS.find((m) => m.valor === metrica)?.etiqueta} — {desde} a {hasta}
+          {modoMensual && <span style={{ fontWeight: 400, color: 'var(--texto-secundario)' }}> (vista por mes)</span>}
         </p>
         <div style={{ height: 280, marginBottom: '2rem' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={serieGrafica}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" />
-              <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
-              <Tooltip content={<TooltipLineas />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => `${value} — ${catalogoPorCuenta[value]?.descripcion || ''}`} />
-              {lineasAGraficar.map((linea, i) => (
-                <Line
-                  key={linea}
-                  type="monotone"
-                  dataKey={linea}
-                  name={`${linea} — ${catalogoPorCuenta[linea]?.descripcion || ''}`}
-                  stroke={coloresLineas[i % coloresLineas.length]}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              ))}
-            </LineChart>
+            {modoMensual ? (
+              <BarChart data={serieMensual}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" />
+                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
+                <Tooltip formatter={(v) => formatoMoneda(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => `${value} — ${catalogoPorCuenta[value]?.descripcion || ''}`} />
+                {lineasAGraficar.map((linea, i) => (
+                  <Bar key={linea} dataKey={linea} fill={coloresLineas[i % coloresLineas.length]} radius={[3, 3, 0, 0]} />
+                ))}
+              </BarChart>
+            ) : (
+              <LineChart data={serieGrafica}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" />
+                <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
+                <Tooltip content={<TooltipLineas />} />
+                <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => `${value} — ${catalogoPorCuenta[value]?.descripcion || ''}`} />
+                {lineasAGraficar.map((linea, i) => (
+                  <Line
+                    key={linea}
+                    type="monotone"
+                    dataKey={linea}
+                    name={`${linea} — ${catalogoPorCuenta[linea]?.descripcion || ''}`}
+                    stroke={coloresLineas[i % coloresLineas.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                ))}
+              </LineChart>
+            )}
           </ResponsiveContainer>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: '0.5rem' }}>
