@@ -16,7 +16,7 @@ function colorAvance(pct) {
 
 export default function AvancePresupuestal() {
   const [cuentas, setCuentas] = useState([]);
-  const [fechaCorte, setFechaCorte] = useState('2026-07-17');
+  const [fechaCorte, setFechaCorte] = useState('');
   const [datosDia, setDatosDia] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
@@ -31,10 +31,11 @@ export default function AvancePresupuestal() {
       .catch((e) => setError('No se pudo cargar el catálogo: ' + e.message));
   }, []);
 
-  function buscar() {
+  function buscar(fechaParam) {
+    const f = fechaParam || fechaCorte;
     setCargando(true);
     setError(null);
-    fetch(`/api/datos?desde=${fechaCorte}&hasta=${fechaCorte}`)
+    fetch(`/api/datos?desde=${f}&hasta=${f}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) throw new Error(d.error);
@@ -45,7 +46,14 @@ export default function AvancePresupuestal() {
   }
 
   useEffect(() => {
-    buscar();
+    fetch('/api/ultima-fecha')
+      .then((r) => r.json())
+      .then((d) => {
+        const ultima = d.fecha || new Date().toISOString().slice(0, 10);
+        setFechaCorte(ultima);
+        buscar(ultima);
+      })
+      .catch((e) => setError('No se pudo determinar la última fecha disponible: ' + e.message));
     // eslint-disable-next-line
   }, []);
 
