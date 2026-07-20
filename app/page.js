@@ -37,8 +37,8 @@ function TooltipLineas({ active, payload, label }) {
 
 export default function Panel() {
   const [cuentas, setCuentas] = useState([]);
-  const [desde, setDesde] = useState('2026-07-01');
-  const [hasta, setHasta] = useState('2026-07-17');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
   const [cuentasSeleccionadas, setCuentasSeleccionadas] = useState([]);
   const [metrica, setMetrica] = useState('disponible');
   const [datos, setDatos] = useState([]);
@@ -54,25 +54,37 @@ export default function Panel() {
       .catch((e) => setError('No se pudo cargar el catálogo de cuentas: ' + e.message));
   }, []);
 
-  function buscarDatos() {
+  function buscarDatos(desdeParam, hastaParam) {
+    const d = desdeParam || desde;
+    const h = hastaParam || hasta;
     setCargando(true);
     setError(null);
-    const params = new URLSearchParams({ desde, hasta });
+    const params = new URLSearchParams({ desde: d, hasta: h });
     if (cuentasSeleccionadas.length > 0) {
       params.set('cuentas', cuentasSeleccionadas.join(','));
     }
     fetch('/api/datos?' + params.toString())
       .then((r) => r.json())
-      .then((d) => {
-        if (d.error) throw new Error(d.error);
-        setDatos(d);
+      .then((datos) => {
+        if (datos.error) throw new Error(datos.error);
+        setDatos(datos);
       })
       .catch((e) => setError('No se pudieron cargar los datos: ' + e.message))
       .finally(() => setCargando(false));
   }
 
   useEffect(() => {
-    buscarDatos();
+    fetch('/api/ultima-fecha')
+      .then((r) => r.json())
+      .then((d) => {
+        const ultima = d.fecha || new Date().toISOString().slice(0, 10);
+        const dt = new Date(ultima + 'T00:00:00');
+        const primerDiaMes = new Date(dt.getFullYear(), dt.getMonth(), 1).toISOString().slice(0, 10);
+        setDesde(primerDiaMes);
+        setHasta(ultima);
+        buscarDatos(primerDiaMes, ultima);
+      })
+      .catch((e) => setError('No se pudo determinar la última fecha disponible: ' + e.message));
     // eslint-disable-next-line
   }, []);
 
