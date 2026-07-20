@@ -237,7 +237,7 @@ export default function Panel() {
               ))}
             </select>
           </div>
-          <button onClick={buscarDatos} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
+          <button onClick={() => buscarDatos()} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
             {cargando ? 'Cargando...' : 'Filtrar'}
           </button>
         </div>
