@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('catalogo_cuentas')
-    .select('cuenta, descripcion, categoria')
+    .select('cuenta, descripcion, categoria, capitulo, tipo')
     .order('cuenta');
 
   if (error) {
