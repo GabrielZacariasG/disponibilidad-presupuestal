@@ -51,16 +51,6 @@ export default function Panel() {
       })
       .catch((e) => setError('No se pudieron cargar los datos: ' + e.message))
       .finally(() => setCargando(false));
-
-    fetch(`/api/comentarios?desde=${d}&hasta=${h}&metrica=${metrica}`)
-      .then((r) => r.json())
-      .then((lista) => {
-        if (lista.error) return;
-        const mapa = {};
-        lista.forEach((c) => (mapa[c.cuenta] = c.comentario));
-        setComentarios(mapa);
-      })
-      .catch(() => {});
   }
 
   function guardarComentario(cuenta, texto) {
