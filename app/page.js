@@ -53,13 +53,13 @@ export default function Panel() {
       .finally(() => setCargando(false));
   }
 
-  function guardarComentario(cuenta, texto) {
-    setComentarios((prev) => ({ ...prev, [cuenta]: texto }));
-    setEditandoCuenta(null);
+  function guardarComentarioDia(fecha, texto) {
+    setComentariosDia((prev) => ({ ...prev, [fecha]: texto }));
+    setEditandoFecha(null);
     fetch('/api/comentarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cuenta, metrica, desde, hasta, comentario: texto }),
+      body: JSON.stringify({ cuenta: cuentaDrill, metrica, fecha, comentario: texto }),
     }).catch((e) => setError('No se pudo guardar el comentario: ' + e.message));
   }
 
