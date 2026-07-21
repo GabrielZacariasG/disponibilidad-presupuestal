@@ -1,21 +1,21 @@
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const desde = searchParams.get('desde');
-  const hasta = searchParams.get('hasta');
+  const cuenta = searchParams.get('cuenta');
   const metrica = searchParams.get('metrica');
 
-  if (!desde || !hasta || !metrica) {
-    return NextResponse.json({ error: 'Faltan parámetros desde/hasta/metrica' }, { status: 400 });
+  if (!cuenta || !metrica) {
+    return NextResponse.json({ error: 'Faltan parámetros cuenta/metrica' }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
     .from('comentarios_movimiento')
-    .select('cuenta, comentario')
-    .eq('fecha_desde', desde)
-    .eq('fecha_hasta', hasta)
+    .select('fecha, comentario')
+    .eq('cuenta', cuenta)
     .eq('metrica', metrica);
 
   if (error) {
@@ -26,9 +26,9 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { cuenta, metrica, desde, hasta, comentario } = await request.json();
+    const { cuenta, metrica, fecha, comentario } = await request.json();
 
-    if (!cuenta || !metrica || !desde || !hasta) {
+    if (!cuenta || !metrica || !fecha) {
       return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 });
     }
 
@@ -38,12 +38,11 @@ export async function POST(request) {
         {
           cuenta,
           metrica,
-          fecha_desde: desde,
-          fecha_hasta: hasta,
+          fecha,
           comentario: comentario || '',
           actualizado_en: new Date().toISOString(),
         },
-        { onConflict: 'cuenta,metrica,fecha_desde,fecha_hasta' }
+        { onConflict: 'cuenta,metrica,fecha' }
       );
 
     if (error) {
