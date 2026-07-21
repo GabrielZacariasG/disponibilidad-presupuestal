@@ -26,8 +26,8 @@ export default function Panel() {
   const [filtroSigno, setFiltroSigno] = useState('todos');
   const [tipoDrill, setTipoDrill] = useState(null);
   const [cuentaDrill, setCuentaDrill] = useState(null);
-  const [comentarios, setComentarios] = useState({});
-  const [editandoCuenta, setEditandoCuenta] = useState(null);
+ const [comentariosDia, setComentariosDia] = useState({});
+  const [editandoFecha, setEditandoFecha] = useState(null);
   const [textoTemp, setTextoTemp] = useState('');
 
   useEffect(() => {
