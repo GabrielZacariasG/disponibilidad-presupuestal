@@ -26,7 +26,7 @@ export default function Panel() {
   const [filtroSigno, setFiltroSigno] = useState('todos');
   const [tipoDrill, setTipoDrill] = useState(null);
   const [cuentaDrill, setCuentaDrill] = useState(null);
-  const [comentarios, setComentarios] = useState({});
+  const [comentariosDia, setComentariosDia] = useState({});
 
   useEffect(() => {
     fetch('/api/cuentas')
@@ -49,17 +49,20 @@ export default function Panel() {
       })
       .catch((e) => setError('No se pudieron cargar los datos: ' + e.message))
       .finally(() => setCargando(false));
+  }
 
-    fetch(`/api/comentarios?desde=${d}&hasta=${h}&metrica=${metrica}`)
+  useEffect(() => {
+    if (!cuentaDrill) { setComentariosDia({}); return; }
+    fetch(`/api/comentarios?cuenta=${cuentaDrill}&metrica=${metrica}`)
       .then((r) => r.json())
       .then((lista) => {
         if (lista.error) return;
         const mapa = {};
-        lista.forEach((c) => (mapa[c.cuenta] = c.comentario));
-        setComentarios(mapa);
+        lista.forEach((c) => { mapa[c.fecha] = c.comentario; });
+        setComentariosDia(mapa);
       })
       .catch(() => {});
-  }
+  }, [cuentaDrill, metrica]);
 
   useEffect(() => {
     fetch('/api/ultima-fecha')
@@ -87,7 +90,6 @@ export default function Panel() {
     return Array.from(set).sort();
   }, [datos]);
 
-  // ---------- SECCIÓN A: total mensual, SIEMPRE de todas las cuentas, sin filtros ----------
   const totalMensual = useMemo(() => {
     const ultimoPorCuentaMes = {};
     datos.forEach((fila) => {
@@ -119,7 +121,6 @@ export default function Panel() {
     return res;
   }, [totalMensual]);
 
-  // ---------- SECCIÓN B: variación por cuenta (base para agrupar por Tipo) ----------
   const cuentasConVariacion = useMemo(() => {
     const primeraFecha = fechasOrdenadas[0];
     const ultimaFecha = fechasOrdenadas[fechasOrdenadas.length - 1];
@@ -139,7 +140,6 @@ export default function Panel() {
     }));
   }, [datos, fechasOrdenadas, metrica, catalogoPorCuenta]);
 
-  // población activa según el nivel de exploración (todo clasificado -> tipo -> cuenta)
   const poblacionActiva = useMemo(() => {
     if (tipoDrill) return cuentasConVariacion.filter((f) => f.tipo === tipoDrill);
     return cuentasConVariacion.filter((f) => f.tipo);
@@ -257,7 +257,6 @@ export default function Panel() {
 
         {error && <p style={{ color: '#A32D2D', fontSize: 13 }}>{error}</p>}
 
-        {/* ---------- SECCIÓN A: TOTAL MENSUAL, SIN DESGLOSE ---------- */}
         <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--imss-verde-oscuro)', margin: '0 0 8px' }}>
           {METRICAS.find((m) => m.valor === metrica)?.etiqueta} total mensual — {desde} a {hasta}
         </p>
@@ -291,7 +290,6 @@ export default function Panel() {
           </div>
         )}
 
-        {/* ---------- SECCIÓN B: EXPLORADOR POR TIPO -> CUENTA ---------- */}
         <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--imss-verde-oscuro)', margin: '0 0 4px' }}>
           Variación por {tipoDrill ? 'cuenta' : 'tipo'}
         </p>
@@ -376,7 +374,6 @@ export default function Panel() {
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>{desde}</th>
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>{hasta}</th>
               <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Variación</th>
-              {tipoDrill && <th style={{ textAlign: 'left', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Comentario</th>}
             </tr>
           </thead>
           <tbody>
@@ -390,11 +387,6 @@ export default function Panel() {
                 <td style={{ padding: '8px 4px', textAlign: 'right', color: f.variacion < 0 ? '#A32D2D' : f.variacion > 0 ? '#27500A' : 'inherit' }}>
                   {formatoMoneda(f.variacion)}
                 </td>
-                {tipoDrill && (
-                  <td style={{ padding: '8px 4px', color: comentarios[f.clave] ? 'inherit' : 'var(--texto-secundario)', fontStyle: comentarios[f.clave] ? 'normal' : 'italic' }}>
-                    {comentarios[f.clave] || 'Sin comentario'}
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>
@@ -418,6 +410,7 @@ export default function Panel() {
                   <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Valor anterior</th>
                   <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Valor nuevo</th>
                   <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Variación</th>
+                  <th style={{ textAlign: 'left', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Comentario</th>
                 </tr>
               </thead>
               <tbody>
@@ -429,6 +422,9 @@ export default function Panel() {
                     <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(fila.actual)}</td>
                     <td style={{ padding: '8px 4px', textAlign: 'right', color: fila.variacion < 0 ? '#A32D2D' : fila.variacion > 0 ? '#27500A' : 'inherit' }}>
                       {formatoMoneda(fila.variacion)}
+                    </td>
+                    <td style={{ padding: '8px 4px', color: comentariosDia[fila.fechaActual] ? 'inherit' : 'var(--texto-secundario)', fontStyle: comentariosDia[fila.fechaActual] ? 'normal' : 'italic' }}>
+                      {comentariosDia[fila.fechaActual] || 'Sin comentario'}
                     </td>
                   </tr>
                 ))}
