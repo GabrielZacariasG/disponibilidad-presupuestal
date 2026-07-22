@@ -264,42 +264,86 @@ export default function Panel() {
     }
   }
 
-  const textoCorreo = useMemo(() => {
+  function filaCuentaHtml(c) {
+    const color = c.variacion < 0 ? '#A32D2D' : '#27500A';
+    const signo = c.variacion >= 0 ? '+' : '';
+    return `<tr>
+      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;color:#333;">${c.cuenta} — ${c.descripcion}</td>
+      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;text-align:right;color:#666;">${formatoMoneda(c.inicio)}</td>
+      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;text-align:right;color:#666;">${formatoMoneda(c.fin)}</td>
+      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;text-align:right;color:${color};font-weight:bold;">${signo}${formatoMoneda(c.variacion)}</td>
+    </tr>`;
+  }
+
+  function bloqueTipoHtml(f) {
+    const color = f.variacion < 0 ? '#A32D2D' : '#27500A';
+    const bg = f.variacion < 0 ? '#FAECE7' : '#EAF3DE';
+    const signo = f.variacion >= 0 ? '+' : '';
+    return `<tr style="background:${bg};">
+      <td colspan="3" style="padding:8px 10px;font-size:13px;font-weight:bold;color:${color};">${f.tipo}</td>
+      <td style="padding:8px 10px;font-size:13px;font-weight:bold;color:${color};text-align:right;">${signo}${formatoMoneda(f.variacion)}</td>
+    </tr>${f.cuentas.map(filaCuentaHtml).join('')}`;
+  }
+
+  function seccionMetricaHtml(titulo, filas) {
+    const total = filas.reduce((s, f) => s + f.variacion, 0);
+    const colorTotal = total < 0 ? '#ffb3a7' : '#c0dd97';
+    const signo = total >= 0 ? '+' : '';
+    return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:24px;font-family:Arial,sans-serif;border:1px solid #e1e0d9;">
+      <tr><td colspan="4" style="padding:0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td style="background:#173404;padding:12px 16px;color:#EAF3DE;font-size:15px;font-weight:bold;">${titulo}</td>
+            <td style="background:#173404;padding:12px 16px;color:${colorTotal};font-size:15px;font-weight:bold;text-align:right;">${signo}${formatoMoneda(total)}</td>
+          </tr>
+        </table>
+      </td></tr>
+      <tr style="background:#f7f7f5;">
+        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;">Cuenta</td>
+        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;text-align:right;">Antes</td>
+        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;text-align:right;">Después</td>
+        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;text-align:right;">Variación</td>
+      </tr>
+      ${filas.length ? filas.map(bloqueTipoHtml).join('') : '<tr><td colspan="4" style="padding:12px 10px;font-size:12px;color:#999;">Sin movimiento en el periodo.</td></tr>'}
+    </table>`;
+  }
+
+  const htmlCorreo = useMemo(() => {
     if (fechasOrdenadas.length === 0) return '';
     const desdeTxt = fechasOrdenadas[0];
     const hastaTxt = fechasOrdenadas[fechasOrdenadas.length - 1];
     const presu = calcularVariacionPorMetrica('presupuesto');
     const disp = calcularVariacionPorMetrica('disponible');
 
-    function seccion(titulo, filas) {
-      if (filas.length === 0) return `${titulo}\nSin movimiento en el periodo.\n`;
-      const total = filas.reduce((s, f) => s + f.variacion, 0);
-      let texto = `${titulo}\nVariación neta: ${formatoMoneda(total)}\n\n`;
-      filas.forEach((f) => {
-        texto += `${f.tipo}: ${formatoMoneda(f.variacion)}\n`;
-        f.cuentas.forEach((c) => {
-          texto += `   ${c.cuenta} — ${c.descripcion}: ${formatoMoneda(c.inicio)} → ${formatoMoneda(c.fin)} (${c.variacion >= 0 ? '+' : ''}${formatoMoneda(c.variacion)})\n`;
-        });
-      });
-      return texto;
-    }
-
-    let texto = `Reporte de Variación Presupuestal — Hospital General de Zona No. 02\n`;
-    texto += `Departamento de Finanzas · Oficina de Presupuesto\n`;
-    texto += `Periodo: ${desdeTxt} a ${hastaTxt}\n\n`;
-    texto += '='.repeat(50) + '\n';
-    texto += seccion('PRESUPUESTO', presu);
-    texto += '\n' + '='.repeat(50) + '\n';
-    texto += seccion('DISPONIBLE', disp);
-
-    return texto;
+    return `<div style="max-width:700px;font-family:Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#173404;margin-bottom:20px;border-collapse:collapse;">
+        <tr><td style="padding:20px;">
+          <div style="color:#EAF3DE;font-size:18px;font-weight:bold;">Hospital General de Zona No. 02</div>
+          <div style="color:#C0DD97;font-size:12px;margin-top:2px;">Departamento de Finanzas · Oficina de Presupuesto</div>
+          <div style="color:#ffffff;font-size:13px;margin-top:10px;">Reporte de Variación Presupuestal — ${desdeTxt} a ${hastaTxt}</div>
+        </td></tr>
+      </table>
+      ${seccionMetricaHtml('PRESUPUESTO', presu)}
+      ${seccionMetricaHtml('DISPONIBLE', disp)}
+    </div>`;
   }, [datos, fechasOrdenadas, catalogoPorCuenta]);
 
   function copiarCorreo() {
-    navigator.clipboard.writeText(textoCorreo).then(() => {
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
-    });
+    const blobHtml = new Blob([htmlCorreo], { type: 'text/html' });
+    const blobTexto = new Blob([htmlCorreo.replace(/<[^>]+>/g, ' ')], { type: 'text/plain' });
+    if (navigator.clipboard && window.ClipboardItem) {
+      navigator.clipboard
+        .write([new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobTexto })])
+        .then(() => {
+          setCopiado(true);
+          setTimeout(() => setCopiado(false), 2000);
+        })
+        .catch(() => {
+          navigator.clipboard.writeText(htmlCorreo.replace(/<[^>]+>/g, ' '));
+        });
+    } else {
+      navigator.clipboard.writeText(htmlCorreo.replace(/<[^>]+>/g, ' '));
+    }
   }
 
   return (
@@ -347,18 +391,18 @@ export default function Panel() {
         </div>
 
         {mostrarCorreo && (
-          <div style={{ marginBottom: '2rem', background: '#f0f0ee', borderRadius: 8, padding: '1rem' }}>
+          <div style={{ marginBottom: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Texto del correo — Presupuesto y Disponible por Tipo</p>
-              <button onClick={copiarCorreo} style={{ padding: '5px 12px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4, fontSize: 12 }}>
-                {copiado ? '¡Copiado!' : 'Copiar'}
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--texto-secundario)' }}>
+                Vista previa del correo — así se va a ver al pegarlo en Outlook
+              </p>
+              <button onClick={copiarCorreo} style={{ padding: '6px 14px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4, fontSize: 12 }}>
+                {copiado ? '¡Copiado! Ya puedes pegarlo en Outlook' : 'Copiar con formato'}
               </button>
             </div>
-            <textarea
-              readOnly
-              value={textoCorreo}
-              style={{ width: '100%', height: 300, fontFamily: 'monospace', fontSize: 12, padding: 8 }}
-              onClick={(e) => e.target.select()}
+            <div
+              style={{ border: '1px solid var(--borde)', borderRadius: 8, padding: '1rem', background: 'white', overflowX: 'auto' }}
+              dangerouslySetInnerHTML={{ __html: htmlCorreo }}
             />
           </div>
         )}
