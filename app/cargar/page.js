@@ -47,22 +47,35 @@ async function procesarArchivo(file) {
   const filasCrudo = datos.filter((r) => r[0] && r[0] !== 'Total General');
 
   const porCuenta = {};
+  const porCuentaPeriodo = {};
+
   for (const r of filasCrudo) {
     const cuenta = (r[0] || '').trim();
     const ui = (r[3] || '').trim();
     if (ui !== UI_OBJETIVO) continue;
+    const periodo = (r[5] || '').trim();
+
+    const vals = {
+      presupuesto: limpiarNumero(r[6]),
+      gasto: limpiarNumero(r[7]),
+      comprometido: limpiarNumero(r[8]),
+      precomprometido: limpiarNumero(r[9]),
+      disponible: limpiarNumero(r[10]),
+    };
+
     if (!porCuenta[cuenta]) porCuenta[cuenta] = { presupuesto: 0, gasto: 0, comprometido: 0, precomprometido: 0, disponible: 0 };
-    porCuenta[cuenta].presupuesto += limpiarNumero(r[6]);
-    porCuenta[cuenta].gasto += limpiarNumero(r[7]);
-    porCuenta[cuenta].comprometido += limpiarNumero(r[8]);
-    porCuenta[cuenta].precomprometido += limpiarNumero(r[9]);
-    porCuenta[cuenta].disponible += limpiarNumero(r[10]);
+    for (const k in vals) porCuenta[cuenta][k] += vals[k];
+
+    const clave = cuenta + '|' + periodo;
+    if (!porCuentaPeriodo[clave]) porCuentaPeriodo[clave] = { cuenta, periodo, presupuesto: 0, gasto: 0, comprometido: 0, precomprometido: 0, disponible: 0 };
+    for (const k in vals) porCuentaPeriodo[clave][k] += vals[k];
   }
 
   const filas = Object.entries(porCuenta).map(([cuenta, v]) => ({ cuenta, ...v }));
+  const filasPeriodo = Object.values(porCuentaPeriodo);
   if (filas.length === 0) throw new Error('No encontré filas con Uni.Información 10102 en este archivo.');
 
-  return { fecha, filas };
+  return { fecha, filas, filasPeriodo };
 }
 
 export default function CargarDia() {
@@ -78,7 +91,8 @@ export default function CargarDia() {
     setCargando(true);
     setEstado(null);
     try {
-      const { fecha, filas } = await procesarArchivo(archivo);
+      const { fecha, filas, filasPeriodo } = await procesarArchivo(archivo);
+
       const resp = await fetch('/api/cargar-dia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,11 +100,22 @@ export default function CargarDia() {
       });
       const resultado = await resp.json();
       if (!resp.ok || resultado.error) {
-        throw new Error(resultado.error || 'Error desconocido del servidor.');
+        throw new Error(resultado.error || 'Error desconocido del servidor (nivel cuenta).');
       }
+
+      const resp2 = await fetch('/api/cargar-periodo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha, filas: filasPeriodo }),
+      });
+      const resultado2 = await resp2.json();
+      if (!resp2.ok || resultado2.error) {
+        throw new Error(resultado2.error || 'Error desconocido del servidor (nivel periodo).');
+      }
+
       setEstado({
         tipo: 'exito',
-        texto: `Listo. Fecha ${fecha}: ${resultado.filasGuardadas} cuentas guardadas/actualizadas.`,
+        texto: `Listo. Fecha ${fecha}: ${resultado.filasGuardadas} cuentas y ${resultado2.filasGuardadas} combinaciones cuenta-periodo guardadas.`,
       });
       setArchivo(null);
     } catch (e) {
@@ -115,7 +140,7 @@ export default function CargarDia() {
       <div style={{ padding: '2rem 1.5rem' }}>
         <h1 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 8px' }}>Cargar disponibilidad del día</h1>
         <p style={{ fontSize: 13, color: 'var(--texto-secundario)', margin: '0 0 1.5rem' }}>
-          Sube el CSV de disponibilidad tal cual lo descargas del sistema (sin modificar). Se filtra automáticamente a las cuentas del hospital y se guarda.
+          Sube el CSV de disponibilidad tal cual lo descargas del sistema (sin modificar). Se guarda tanto el total por cuenta como el detalle por periodo (M01-M12).
         </p>
 
         <input
