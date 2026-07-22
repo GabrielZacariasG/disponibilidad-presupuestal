@@ -357,7 +357,7 @@ export default function Panel() {
       const html2canvas = mod.default;
       const canvas = await html2canvas(previewRef.current, {
         backgroundColor: '#ffffff',
-        scale: 2,
+        scale: 1,
         useCORS: true,
       });
       canvas.toBlob(async (blob) => {
