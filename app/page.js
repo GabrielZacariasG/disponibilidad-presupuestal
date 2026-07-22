@@ -268,10 +268,10 @@ export default function Panel() {
     const color = c.variacion < 0 ? '#A32D2D' : '#27500A';
     const signo = c.variacion >= 0 ? '+' : '';
     return `<tr>
-      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;color:#333;">${c.cuenta} — ${c.descripcion}</td>
-      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;text-align:right;color:#666;">${formatoMoneda(c.inicio)}</td>
-      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;text-align:right;color:#666;">${formatoMoneda(c.fin)}</td>
-      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;text-align:right;color:${color};font-weight:bold;">${signo}${formatoMoneda(c.variacion)}</td>
+      <td style="padding:5px 8px;font-size:10px;line-height:1.3;border-bottom:1px solid #eee;color:#333;">${c.cuenta} — ${c.descripcion}</td>
+      <td style="padding:5px 8px;font-size:10px;line-height:1.3;border-bottom:1px solid #eee;text-align:right;color:#666;">${formatoMoneda(c.inicio)}</td>
+      <td style="padding:5px 8px;font-size:10px;line-height:1.3;border-bottom:1px solid #eee;text-align:right;color:#666;">${formatoMoneda(c.fin)}</td>
+      <td style="padding:5px 8px;font-size:10px;line-height:1.3;border-bottom:1px solid #eee;text-align:right;color:${color};font-weight:bold;">${signo}${formatoMoneda(c.variacion)}</td>
     </tr>`;
   }
 
@@ -280,8 +280,8 @@ export default function Panel() {
     const bg = f.variacion < 0 ? '#FAECE7' : '#EAF3DE';
     const signo = f.variacion >= 0 ? '+' : '';
     return `<tr style="background:${bg};">
-      <td colspan="3" style="padding:8px 10px;font-size:13px;font-weight:bold;color:${color};">${f.tipo}</td>
-      <td style="padding:8px 10px;font-size:13px;font-weight:bold;color:${color};text-align:right;">${signo}${formatoMoneda(f.variacion)}</td>
+      <td colspan="3" style="padding:6px 8px;font-size:11px;line-height:1.3;font-weight:bold;color:${color};">${f.tipo}</td>
+      <td style="padding:6px 8px;font-size:11px;line-height:1.3;font-weight:bold;color:${color};text-align:right;">${signo}${formatoMoneda(f.variacion)}</td>
     </tr>${f.cuentas.map(filaCuentaHtml).join('')}`;
   }
 
@@ -293,18 +293,18 @@ export default function Panel() {
       <tr><td colspan="4" style="padding:0;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
-            <td style="background:#173404;padding:12px 16px;color:#EAF3DE;font-size:15px;font-weight:bold;">${titulo}</td>
-            <td style="background:#173404;padding:12px 16px;color:${colorTotal};font-size:15px;font-weight:bold;text-align:right;">${signo}${formatoMoneda(total)}</td>
+            <td style="background:#173404;padding:8px 12px;color:#EAF3DE;font-size:13px;line-height:1.3;font-weight:bold;">${titulo}</td>
+            <td style="background:#173404;padding:8px 12px;color:${colorTotal};font-size:13px;line-height:1.3;font-weight:bold;text-align:right;">${signo}${formatoMoneda(total)}</td>
           </tr>
         </table>
       </td></tr>
       <tr style="background:#f7f7f5;">
-        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;">Cuenta</td>
-        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;text-align:right;">Antes</td>
-        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;text-align:right;">Después</td>
-        <td style="padding:6px 10px;font-size:11px;color:#666;font-weight:bold;text-align:right;">Variación</td>
+        <td style="padding:5px 8px;font-size:9px;line-height:1.3;color:#666;font-weight:bold;">Cuenta</td>
+        <td style="padding:5px 8px;font-size:9px;line-height:1.3;color:#666;font-weight:bold;text-align:right;">Antes</td>
+        <td style="padding:5px 8px;font-size:9px;line-height:1.3;color:#666;font-weight:bold;text-align:right;">Después</td>
+        <td style="padding:5px 8px;font-size:9px;line-height:1.3;color:#666;font-weight:bold;text-align:right;">Variación</td>
       </tr>
-      ${filas.length ? filas.map(bloqueTipoHtml).join('') : '<tr><td colspan="4" style="padding:12px 10px;font-size:12px;color:#999;">Sin movimiento en el periodo.</td></tr>'}
+      ${filas.length ? filas.map(bloqueTipoHtml).join('') : '<tr><td colspan="4" style="padding:8px;font-size:10px;color:#999;">Sin movimiento en el periodo.</td></tr>'}
     </table>`;
   }
 
@@ -317,10 +317,10 @@ export default function Panel() {
 
     return `<div style="max-width:700px;font-family:Arial,sans-serif;">
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#173404;margin-bottom:20px;border-collapse:collapse;">
-        <tr><td style="padding:20px;">
-          <div style="color:#EAF3DE;font-size:18px;font-weight:bold;">Hospital General de Zona No. 02</div>
-          <div style="color:#C0DD97;font-size:12px;margin-top:2px;">Departamento de Finanzas · Oficina de Presupuesto</div>
-          <div style="color:#ffffff;font-size:13px;margin-top:10px;">Reporte de Variación Presupuestal — ${desdeTxt} a ${hastaTxt}</div>
+        <tr><td style="padding:14px;">
+          <div style="color:#EAF3DE;font-size:15px;line-height:1.3;font-weight:bold;">Hospital General de Zona No. 02</div>
+          <div style="color:#C0DD97;font-size:10px;line-height:1.3;margin-top:2px;">Departamento de Finanzas · Oficina de Presupuesto</div>
+          <div style="color:#ffffff;font-size:11px;line-height:1.3;margin-top:8px;">Reporte de Variación Presupuestal — ${desdeTxt} a ${hastaTxt}</div>
         </td></tr>
       </table>
       ${seccionMetricaHtml('PRESUPUESTO', presu)}
