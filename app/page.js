@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const METRICAS = [
   { valor: 'presupuesto', etiqueta: 'Presupuesto' },
@@ -29,6 +29,8 @@ export default function Panel() {
   const [comentariosDia, setComentariosDia] = useState({});
   const [editandoFecha, setEditandoFecha] = useState(null);
   const [textoTemp, setTextoTemp] = useState('');
+  const [mostrarCorreo, setMostrarCorreo] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     fetch('/api/cuentas')
@@ -133,6 +135,42 @@ export default function Panel() {
     return res;
   }, [totalMensual]);
 
+  function calcularVariacionPorMetrica(metricaKey) {
+    const primeraFecha = fechasOrdenadas[0];
+    const ultimaFecha = fechasOrdenadas[fechasOrdenadas.length - 1];
+    const porCuenta = {};
+    datos.forEach((fila) => {
+      if (!porCuenta[fila.cuenta]) porCuenta[fila.cuenta] = {};
+      if (fila.fecha === primeraFecha) porCuenta[fila.cuenta].inicio = fila[metricaKey];
+      if (fila.fecha === ultimaFecha) porCuenta[fila.cuenta].fin = fila[metricaKey];
+    });
+    const cuentasVar = Object.entries(porCuenta)
+      .map(([cuenta, v]) => ({
+        cuenta,
+        descripcion: catalogoPorCuenta[cuenta]?.descripcion || 'Sin descripción',
+        tipo: catalogoPorCuenta[cuenta]?.tipo || null,
+        inicio: v.inicio || 0,
+        fin: v.fin ?? v.inicio ?? 0,
+        variacion: (v.fin ?? v.inicio ?? 0) - (v.inicio || 0),
+      }))
+      .filter((f) => f.tipo && f.variacion !== 0);
+
+    const porTipo = {};
+    cuentasVar.forEach((f) => {
+      if (!porTipo[f.tipo]) porTipo[f.tipo] = { variacion: 0, cuentas: [] };
+      porTipo[f.tipo].variacion += f.variacion;
+      porTipo[f.tipo].cuentas.push(f);
+    });
+
+    return Object.entries(porTipo)
+      .map(([tipo, v]) => ({
+        tipo,
+        variacion: v.variacion,
+        cuentas: v.cuentas.sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion)),
+      }))
+      .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
+  }
+
   const cuentasConVariacion = useMemo(() => {
     const primeraFecha = fechasOrdenadas[0];
     const ultimaFecha = fechasOrdenadas[fechasOrdenadas.length - 1];
@@ -226,6 +264,44 @@ export default function Panel() {
     }
   }
 
+  const textoCorreo = useMemo(() => {
+    if (fechasOrdenadas.length === 0) return '';
+    const desdeTxt = fechasOrdenadas[0];
+    const hastaTxt = fechasOrdenadas[fechasOrdenadas.length - 1];
+    const presu = calcularVariacionPorMetrica('presupuesto');
+    const disp = calcularVariacionPorMetrica('disponible');
+
+    function seccion(titulo, filas) {
+      if (filas.length === 0) return `${titulo}\nSin movimiento en el periodo.\n`;
+      const total = filas.reduce((s, f) => s + f.variacion, 0);
+      let texto = `${titulo}\nVariación neta: ${formatoMoneda(total)}\n\n`;
+      filas.forEach((f) => {
+        texto += `${f.tipo}: ${formatoMoneda(f.variacion)}\n`;
+        f.cuentas.forEach((c) => {
+          texto += `   ${c.cuenta} — ${c.descripcion}: ${formatoMoneda(c.inicio)} → ${formatoMoneda(c.fin)} (${c.variacion >= 0 ? '+' : ''}${formatoMoneda(c.variacion)})\n`;
+        });
+      });
+      return texto;
+    }
+
+    let texto = `Reporte de Variación Presupuestal — Hospital General de Zona No. 02\n`;
+    texto += `Departamento de Finanzas · Oficina de Presupuesto\n`;
+    texto += `Periodo: ${desdeTxt} a ${hastaTxt}\n\n`;
+    texto += '='.repeat(50) + '\n';
+    texto += seccion('PRESUPUESTO', presu);
+    texto += '\n' + '='.repeat(50) + '\n';
+    texto += seccion('DISPONIBLE', disp);
+
+    return texto;
+  }, [datos, fechasOrdenadas, catalogoPorCuenta]);
+
+  function copiarCorreo() {
+    navigator.clipboard.writeText(textoCorreo).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    });
+  }
+
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: '3rem' }}>
       <div style={{ background: 'var(--imss-verde-oscuro)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -262,7 +338,30 @@ export default function Panel() {
           <button onClick={() => buscarDatos()} style={{ padding: '7px 16px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4 }}>
             {cargando ? 'Cargando...' : 'Filtrar'}
           </button>
+          <button
+            onClick={() => setMostrarCorreo((v) => !v)}
+            style={{ padding: '7px 16px', background: 'white', color: 'var(--imss-verde-oscuro)', border: '1px solid var(--imss-verde)', borderRadius: 4 }}
+          >
+            {mostrarCorreo ? 'Ocultar correo' : 'Generar correo'}
+          </button>
         </div>
+
+        {mostrarCorreo && (
+          <div style={{ marginBottom: '2rem', background: '#f0f0ee', borderRadius: 8, padding: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Texto del correo — Presupuesto y Disponible por Tipo</p>
+              <button onClick={copiarCorreo} style={{ padding: '5px 12px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4, fontSize: 12 }}>
+                {copiado ? '¡Copiado!' : 'Copiar'}
+              </button>
+            </div>
+            <textarea
+              readOnly
+              value={textoCorreo}
+              style={{ width: '100%', height: 300, fontFamily: 'monospace', fontSize: 12, padding: 8 }}
+              onClick={(e) => e.target.select()}
+            />
+          </div>
+        )}
 
         {error && <p style={{ color: '#A32D2D', fontSize: 13 }}>{error}</p>}
 
