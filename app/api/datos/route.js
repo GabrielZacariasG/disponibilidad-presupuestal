@@ -1,6 +1,9 @@
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const desde = searchParams.get('desde');
