@@ -324,4 +324,18 @@ export default function AvancePresupuestal() {
                     <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.presupuesto)}</td>
                     <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.gasto)}</td>
                     <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.comprometido)}</td>
-                    <td style={{
+                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.precomprometido)}</td>
+                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.disponible)}</td>
+                    <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 600, color: colorAvance(m.avance) }}>
+                      {m.avance === null ? 'N/A' : `${m.avance.toFixed(1)}%`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
