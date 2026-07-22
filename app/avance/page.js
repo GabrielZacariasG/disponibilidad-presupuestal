@@ -15,12 +15,23 @@ function colorAvance(pct) {
   return '#5f5e5a';
 }
 
+const MESES_NOMBRE = { '01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic' };
+
+function formatoPeriodo(periodo) {
+  // periodo viene como "2026M07"
+  const match = periodo.match(/(\d{4})M(\d{2})/);
+  if (!match) return periodo;
+  const [, anio, mes] = match;
+  return `${MESES_NOMBRE[mes] || mes} ${anio}`;
+}
+
 export default function AvancePresupuestal() {
   const [cuentas, setCuentas] = useState([]);
   const [fechaCorte, setFechaCorte] = useState('');
   const [datosDia, setDatosDia] = useState([]);
-  const [datosRango, setDatosRango] = useState([]);
+  const [datosPeriodo, setDatosPeriodo] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [cargandoPeriodo, setCargandoPeriodo] = useState(false);
   const [error, setError] = useState(null);
   const [tipoSel, setTipoSel] = useState('');
   const [cuentaSel, setCuentaSel] = useState('');
@@ -44,14 +55,6 @@ export default function AvancePresupuestal() {
       })
       .catch((e) => setError('No se pudieron cargar los datos: ' + e.message))
       .finally(() => setCargando(false));
-
-    const inicioAnio = f.slice(0, 4) + '-01-01';
-    fetch(`/api/datos?desde=${inicioAnio}&hasta=${f}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.error) setDatosRango(d);
-      })
-      .catch(() => {});
   }
 
   useEffect(() => {
@@ -130,41 +133,48 @@ export default function AvancePresupuestal() {
     return sumar(universo);
   }, [cuentaSel, cuentasDisponibles, datosPorCuenta]);
 
-  // ---------- Distribución mensual (solo aparece si hay Tipo o Cuenta seleccionados) ----------
+  // ---------- Distribución mensual REAL, por periodo SAP (M01-M12) ----------
   const cuentasParaMensual = useMemo(() => {
     if (cuentaSel) return [cuentaSel];
     if (tipoSel) return cuentasClasificadas.filter((c) => c.tipo === tipoSel).map((c) => c.cuenta);
     return null;
   }, [cuentaSel, tipoSel, cuentasClasificadas]);
 
+  useEffect(() => {
+    if (!cuentasParaMensual || !fechaCorte) {
+      setDatosPeriodo([]);
+      return;
+    }
+    setCargandoPeriodo(true);
+    fetch(`/api/datos-periodo?fecha=${fechaCorte}&cuentas=${cuentasParaMensual.join(',')}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        setDatosPeriodo(d);
+      })
+      .catch((e) => setError('No se pudo cargar la distribución mensual: ' + e.message))
+      .finally(() => setCargandoPeriodo(false));
+  }, [cuentasParaMensual, fechaCorte]);
+
   const distribucionMensual = useMemo(() => {
-    if (!cuentasParaMensual) return [];
-    const objetivo = new Set(cuentasParaMensual);
-    const ultimoPorCuentaMes = {};
-    datosRango.forEach((fila) => {
-      if (!objetivo.has(fila.cuenta)) return;
-      const mes = fila.fecha.slice(0, 7);
-      if (!ultimoPorCuentaMes[mes]) ultimoPorCuentaMes[mes] = {};
-      const actual = ultimoPorCuentaMes[mes][fila.cuenta];
-      if (!actual || fila.fecha > actual.fecha) {
-        ultimoPorCuentaMes[mes][fila.cuenta] = fila;
-      }
+    const porPeriodo = {};
+    datosPeriodo.forEach((f) => {
+      if (!porPeriodo[f.periodo]) porPeriodo[f.periodo] = { presupuesto: 0, gasto: 0, comprometido: 0, precomprometido: 0, disponible: 0 };
+      porPeriodo[f.periodo].presupuesto += f.presupuesto;
+      porPeriodo[f.periodo].gasto += f.gasto;
+      porPeriodo[f.periodo].comprometido += f.comprometido;
+      porPeriodo[f.periodo].precomprometido += f.precomprometido;
+      porPeriodo[f.periodo].disponible += f.disponible;
     });
-    return Object.keys(ultimoPorCuentaMes).sort().map((mes) => {
-      let presupuesto = 0, gasto = 0, comprometido = 0, precomprometido = 0, disponible = 0;
-      Object.values(ultimoPorCuentaMes[mes]).forEach((f) => {
-        presupuesto += f.presupuesto;
-        gasto += f.gasto;
-        comprometido += f.comprometido;
-        precomprometido += f.precomprometido;
-        disponible += f.disponible;
-      });
-      return {
-        mes, presupuesto, gasto, comprometido, precomprometido, disponible,
-        avance: presupuesto !== 0 ? (gasto / presupuesto) * 100 : null,
-      };
-    });
-  }, [datosRango, cuentasParaMensual]);
+    return Object.entries(porPeriodo)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([periodo, v]) => ({
+        periodo,
+        mesEtiqueta: formatoPeriodo(periodo),
+        ...v,
+        avance: v.presupuesto !== 0 ? (v.gasto / v.presupuesto) * 100 : null,
+      }));
+  }, [datosPeriodo]);
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: '3rem' }}>
@@ -289,50 +299,62 @@ export default function AvancePresupuestal() {
           </p>
         )}
 
-        {distribucionMensual.length > 0 && (
+        {cuentasParaMensual && (
           <>
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--imss-verde-oscuro)', margin: '2.5rem 0 8px' }}>
-              Distribución mensual — {cuentaSel ? (catalogoPorCuenta[cuentaSel]?.descripcion || cuentaSel) : tipoSel}
+              Distribución mensual por periodo — {cuentaSel ? (catalogoPorCuenta[cuentaSel]?.descripcion || cuentaSel) : tipoSel}
             </p>
-            <div style={{ height: 240, marginBottom: '1rem' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={distribucionMensual}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
-                  <Tooltip formatter={(v) => formatoMoneda(v)} />
-                  <Bar dataKey="gasto" name="Gasto" fill="var(--imss-verde)" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--borde)' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Mes</th>
-                  <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Presupuesto</th>
-                  <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Gasto</th>
-                  <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Comprometido</th>
-                  <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Precomprometido</th>
-                  <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Disponible</th>
-                  <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>% Avance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {distribucionMensual.map((m, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f0f0ee' }}>
-                    <td style={{ padding: '8px 4px' }}>{m.mes}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.presupuesto)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.gasto)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.comprometido)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.precomprometido)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.disponible)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 600, color: colorAvance(m.avance) }}>
-                      {m.avance === null ? 'N/A' : `${m.avance.toFixed(1)}%`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+            {cargandoPeriodo && <p style={{ fontSize: 12, color: 'var(--texto-secundario)' }}>Cargando distribución por periodo...</p>}
+
+            {!cargandoPeriodo && distribucionMensual.length === 0 && (
+              <p style={{ fontSize: 12, color: 'var(--texto-secundario)' }}>No hay datos por periodo para esta selección.</p>
+            )}
+
+            {!cargandoPeriodo && distribucionMensual.length > 0 && (
+              <>
+                <div style={{ height: 240, marginBottom: '1rem' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={distribucionMensual}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e1e0d9" />
+                      <XAxis dataKey="mesEtiqueta" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => (v / 1e6).toFixed(1) + 'M'} />
+                      <Tooltip formatter={(v) => formatoMoneda(v)} />
+                      <Bar dataKey="comprometido" name="Comprometido" fill="#eda100" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="disponible" name="Disponible" fill="var(--imss-verde)" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--borde)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Periodo</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Presupuesto</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Gasto</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Comprometido</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Precomprometido</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Disponible</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: 'var(--texto-secundario)', fontWeight: 500 }}>% Avance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {distribucionMensual.map((m, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #f0f0ee' }}>
+                        <td style={{ padding: '8px 4px' }}>{m.mesEtiqueta}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.presupuesto)}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.gasto)}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 600 }}>{formatoMoneda(m.comprometido)}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(m.precomprometido)}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 600 }}>{formatoMoneda(m.disponible)}</td>
+                        <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 600, color: colorAvance(m.avance) }}>
+                          {m.avance === null ? 'N/A' : `${m.avance.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </>
         )}
       </div>
