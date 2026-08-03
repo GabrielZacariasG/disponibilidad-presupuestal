@@ -148,7 +148,7 @@ export default function Panel() {
   const filasNivel = useMemo(() => {
     if (tipoDrill) {
       return poblacionActiva
-        .filter((f) => f.variacion !== 0)
+        .filter((f) => Math.abs(f.variacion) >= 1)
         .map((f) => ({ clave: f.cuenta, nombre: `${f.cuenta} — ${f.descripcion}`, ...f }))
         .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
     }
@@ -160,7 +160,7 @@ export default function Panel() {
       porTipo[f.tipo].variacion += f.variacion;
     });
     return Object.entries(porTipo)
-      .filter(([, v]) => v.variacion !== 0)
+      .filter(([, v]) => Math.abs(v.variacion) >= 1)
       .map(([tipo, v]) => ({ clave: tipo, nombre: tipo, ...v }))
       .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
   }, [poblacionActiva, tipoDrill]);
