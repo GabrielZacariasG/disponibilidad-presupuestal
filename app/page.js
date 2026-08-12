@@ -244,6 +244,17 @@ export default function Panel() {
     const filas = datos
       .filter((f) => f.cuenta === cuentaDrill)
       .sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
+    if (filas.length === 0) return [];
+    if (filas.length === 1) {
+      const actual = filas[0][metrica];
+      return [{
+        fechaAnterior: 'Primera aparición',
+        fechaActual: filas[0].fecha,
+        anterior: 0,
+        actual,
+        variacion: actual,
+      }];
+    }
     const resultado = [];
     for (let i = 1; i < filas.length; i++) {
       const anterior = filas[i - 1][metrica];
