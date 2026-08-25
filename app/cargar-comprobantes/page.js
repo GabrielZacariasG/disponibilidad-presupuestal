@@ -27,11 +27,12 @@ async function procesarArchivo(file) {
 
   const filtradas = filas.filter((f) => {
     const ui = f['Unidad de Información'];
-    return ui != null && String(ui).trim() === UI_OBJETIVO;
+    const estadoPpto = f['Estado Ppto'];
+    return ui != null && String(ui).trim() === UI_OBJETIVO && estadoPpto === 'V';
   });
 
   if (filtradas.length === 0) {
-    throw new Error(`No se encontraron filas con Unidad de Información = ${UI_OBJETIVO}. ¿Es el archivo correcto?`);
+    throw new Error(`No se encontraron filas con Unidad de Información = ${UI_OBJETIVO} y Estado Ppto = V. ¿Es el archivo correcto?`);
   }
 
   const resultado = filtradas.map((f) => ({
@@ -101,7 +102,7 @@ export default function CargarComprobantes() {
       <div style={{ padding: '2rem 1.5rem' }}>
         <h1 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 8px' }}>Cargar reporte de comprobantes</h1>
         <p style={{ fontSize: 13, color: 'var(--texto-secundario)', margin: '0 0 1.5rem' }}>
-          Sube el archivo tal cual lo descargas (formato .xls). Se guardan solo las filas con Unidad de Información = {UI_OBJETIVO}.
+          Sube el archivo tal cual lo descargas (formato .xls). Se guardan solo las filas con Unidad de Información = {UI_OBJETIVO} y Estado Ppto = V (válido presupuestalmente).
           Cada carga reemplaza por completo lo que había antes.
         </p>
 
