@@ -23,7 +23,17 @@ async function procesarArchivo(file) {
   const ws = wb.Sheets[nombreHoja];
 
   // La fila 1 es un título, los encabezados reales están en la fila 2 (índice 1)
-  const filas = XLSX.utils.sheet_to_json(ws, { range: 1, defval: null });
+  const filasCrudo = XLSX.utils.sheet_to_json(ws, { range: 1, defval: null });
+
+  // Normalizar encabezados: el archivo real trae espacios de más en algunas columnas
+  // (ej. " Importe Cuenta " en vez de "Importe Cuenta") — esto lo hace robusto a eso.
+  const filas = filasCrudo.map((filaCruda) => {
+    const filaLimpia = {};
+    for (const clave in filaCruda) {
+      filaLimpia[clave.trim()] = filaCruda[clave];
+    }
+    return filaLimpia;
+  });
 
   const filtradas = filas.filter((f) => {
     const ui = f['Unidad de Información'];
