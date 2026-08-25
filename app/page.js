@@ -15,6 +15,10 @@ function formatoMoneda(v) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(v || 0);
 }
 
+function formatoNumero2(v) {
+  return new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
+}
+
 export default function Panel() {
   const [cuentas, setCuentas] = useState([]);
   const [desde, setDesde] = useState('');
@@ -33,6 +37,7 @@ export default function Panel() {
   const [copiado, setCopiado] = useState(false);
   const [copiadoImg, setCopiadoImg] = useState(false);
   const [generandoImg, setGenerandoImg] = useState(false);
+  const [buscandoSugerencia, setBuscandoSugerencia] = useState(null);
   const previewRef = useRef(null);
 
   useEffect(() => {
@@ -66,6 +71,43 @@ export default function Panel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cuenta: cuentaDrill, metrica, fecha, comentario: texto }),
     }).catch((e) => setError('No se pudo guardar el comentario: ' + e.message));
+  }
+
+  async function sugerirComentario(fechaAnterior, fechaActual, variacionEsperada) {
+    setBuscandoSugerencia(fechaActual);
+    try {
+      const params = new URLSearchParams({ cuenta: cuentaDrill, desde: fechaAnterior, hasta: fechaActual });
+      const resp = await fetch('/api/comprobantes?' + params.toString());
+      const lista = await resp.json();
+      if (lista.error) throw new Error(lista.error);
+
+      if (!lista.length) {
+        setTextoTemp('No se encontraron comprobantes para este rango — verificar manualmente.');
+      } else {
+        const proveedoresUnicos = Array.from(new Set(lista.map((c) => c.proveedor).filter(Boolean)));
+        let texto;
+        if (proveedoresUnicos.length <= 1) {
+          const partes = lista.map((c) => `CR ${c.comprobante} ${formatoNumero2(c.importe_cuenta)}`);
+          texto = partes.join(' + ') + (proveedoresUnicos[0] ? ' — ' + proveedoresUnicos[0] : '');
+        } else {
+          const partes = lista.map((c) => `CR ${c.comprobante} ${formatoNumero2(c.importe_cuenta)} (${c.proveedor || 'sin proveedor'})`);
+          texto = partes.join(' + ');
+        }
+
+        const sumaEncontrada = lista.reduce((s, c) => s + (c.importe_cuenta || 0), 0);
+        const diferencia = Math.abs(sumaEncontrada) - Math.abs(variacionEsperada || 0);
+        if (Math.abs(diferencia) >= 1) {
+          texto += ` [ATENCIÓN: la suma encontrada (${formatoNumero2(sumaEncontrada)}) no coincide con la variación del día (${formatoNumero2(Math.abs(variacionEsperada || 0))}) — revisar a mano]`;
+        }
+
+        setTextoTemp(texto);
+      }
+      setEditandoFecha(fechaActual);
+    } catch (e) {
+      setError('No se pudo buscar la sugerencia: ' + e.message);
+    } finally {
+      setBuscandoSugerencia(null);
+    }
   }
 
   useEffect(() => {
@@ -642,7 +684,7 @@ export default function Panel() {
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                           <span style={{ color: comentariosDia[fila.fechaActual] ? 'inherit' : 'var(--texto-secundario)', fontStyle: comentariosDia[fila.fechaActual] ? 'normal' : 'italic' }}>
                             {comentariosDia[fila.fechaActual] || 'Sin comentario'}
                           </span>
@@ -652,6 +694,15 @@ export default function Panel() {
                           >
                             Editar
                           </button>
+                          {fila.fechaAnterior !== 'Primera aparición' && (
+                            <button
+                              onClick={() => sugerirComentario(fila.fechaAnterior, fila.fechaActual, fila.variacion)}
+                              disabled={buscandoSugerencia === fila.fechaActual}
+                              style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap', background: 'var(--imss-verde-claro)', border: '1px solid var(--imss-verde)', borderRadius: 4, color: 'var(--imss-verde-oscuro)' }}
+                            >
+                              {buscandoSugerencia === fila.fechaActual ? 'Buscando...' : 'Sugerir'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
