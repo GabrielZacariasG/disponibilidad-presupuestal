@@ -38,6 +38,9 @@ export default function Panel() {
   const [copiadoImg, setCopiadoImg] = useState(false);
   const [generandoImg, setGenerandoImg] = useState(false);
   const [buscandoSugerencia, setBuscandoSugerencia] = useState(null);
+  const [centroExpandido, setCentroExpandido] = useState(null);
+  const [centrosPorFecha, setCentrosPorFecha] = useState({});
+  const [cargandoCentros, setCargandoCentros] = useState(null);
   const previewRef = useRef(null);
 
   useEffect(() => {
@@ -110,8 +113,48 @@ export default function Panel() {
     }
   }
 
+  async function verCentros(fechaAnterior, fechaActual) {
+    if (centroExpandido === fechaActual) {
+      setCentroExpandido(null);
+      return;
+    }
+    setCentroExpandido(fechaActual);
+    if (centrosPorFecha[fechaActual]) return;
+
+    setCargandoCentros(fechaActual);
+    try {
+      const params = new URLSearchParams({ cuenta: cuentaDrill, desde: fechaAnterior, hasta: fechaActual });
+      const resp = await fetch('/api/datos-centro?' + params.toString());
+      const lista = await resp.json();
+      if (lista.error) throw new Error(lista.error);
+
+      const porCentro = {};
+      lista.forEach((f) => {
+        if (!porCentro[f.centro_costo]) porCentro[f.centro_costo] = {};
+        if (f.fecha === fechaAnterior) porCentro[f.centro_costo].anterior = f[metrica];
+        if (f.fecha === fechaActual) porCentro[f.centro_costo].actual = f[metrica];
+      });
+
+      const filasCentro = Object.entries(porCentro)
+        .map(([centro, v]) => ({
+          centro,
+          anterior: v.anterior || 0,
+          actual: v.actual ?? v.anterior ?? 0,
+          variacion: (v.actual ?? v.anterior ?? 0) - (v.anterior || 0),
+        }))
+        .filter((f) => Math.abs(f.variacion) >= 1)
+        .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
+
+      setCentrosPorFecha((prev) => ({ ...prev, [fechaActual]: filasCentro }));
+    } catch (e) {
+      setError('No se pudo cargar el desglose por centro de costo: ' + e.message);
+    } finally {
+      setCargandoCentros(null);
+    }
+  }
+
   useEffect(() => {
-    if (!cuentaDrill) { setComentariosDia({}); return; }
+    if (!cuentaDrill) { setComentariosDia({}); setCentrosPorFecha({}); setCentroExpandido(null); return; }
     fetch(`/api/comentarios?cuenta=${cuentaDrill}&metrica=${metrica}`)
       .then((r) => r.json())
       .then((lista) => {
@@ -656,57 +699,102 @@ export default function Panel() {
               </thead>
               <tbody>
                 {detalleDiaADia.map((fila, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f0f0ee' }}>
-                    <td style={{ padding: '8px 4px' }}>{fila.fechaAnterior}</td>
-                    <td style={{ padding: '8px 4px' }}>{fila.fechaActual}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(fila.anterior)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(fila.actual)}</td>
-                    <td style={{ padding: '8px 4px', textAlign: 'right', color: fila.variacion < 0 ? '#A32D2D' : fila.variacion > 0 ? '#27500A' : 'inherit' }}>
-                      {formatoMoneda(fila.variacion)}
-                    </td>
-                    <td style={{ padding: '8px 4px' }}>
-                      {editandoFecha === fila.fechaActual ? (
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          <input
-                            type="text"
-                            autoFocus
-                            placeholder="¿A qué se debe?"
-                            value={textoTemp}
-                            onChange={(e) => setTextoTemp(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') guardarComentarioDia(fila.fechaActual, textoTemp); }}
-                            style={{ width: '100%', minWidth: 140, fontSize: 12, padding: '4px 6px' }}
-                          />
-                          <button
-                            onClick={() => guardarComentarioDia(fila.fechaActual, textoTemp)}
-                            style={{ fontSize: 11, padding: '4px 8px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4, whiteSpace: 'nowrap' }}
-                          >
-                            Guardar
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ color: comentariosDia[fila.fechaActual] ? 'inherit' : 'var(--texto-secundario)', fontStyle: comentariosDia[fila.fechaActual] ? 'normal' : 'italic' }}>
-                            {comentariosDia[fila.fechaActual] || 'Sin comentario'}
-                          </span>
-                          <button
-                            onClick={() => { setEditandoFecha(fila.fechaActual); setTextoTemp(comentariosDia[fila.fechaActual] || ''); }}
-                            style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}
-                          >
-                            Editar
-                          </button>
-                          {fila.fechaAnterior !== 'Primera aparición' && (
+                  <>
+                    <tr key={i} style={{ borderBottom: '1px solid #f0f0ee' }}>
+                      <td style={{ padding: '8px 4px' }}>{fila.fechaAnterior}</td>
+                      <td style={{ padding: '8px 4px' }}>{fila.fechaActual}</td>
+                      <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(fila.anterior)}</td>
+                      <td style={{ padding: '8px 4px', textAlign: 'right' }}>{formatoMoneda(fila.actual)}</td>
+                      <td style={{ padding: '8px 4px', textAlign: 'right', color: fila.variacion < 0 ? '#A32D2D' : fila.variacion > 0 ? '#27500A' : 'inherit' }}>
+                        {formatoMoneda(fila.variacion)}
+                      </td>
+                      <td style={{ padding: '8px 4px' }}>
+                        {editandoFecha === fila.fechaActual ? (
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="¿A qué se debe?"
+                              value={textoTemp}
+                              onChange={(e) => setTextoTemp(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') guardarComentarioDia(fila.fechaActual, textoTemp); }}
+                              style={{ width: '100%', minWidth: 140, fontSize: 12, padding: '4px 6px' }}
+                            />
                             <button
-                              onClick={() => sugerirComentario(fila.fechaAnterior, fila.fechaActual, fila.variacion)}
-                              disabled={buscandoSugerencia === fila.fechaActual}
-                              style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap', background: 'var(--imss-verde-claro)', border: '1px solid var(--imss-verde)', borderRadius: 4, color: 'var(--imss-verde-oscuro)' }}
+                              onClick={() => guardarComentarioDia(fila.fechaActual, textoTemp)}
+                              style={{ fontSize: 11, padding: '4px 8px', background: 'var(--imss-verde)', color: 'white', border: 'none', borderRadius: 4, whiteSpace: 'nowrap' }}
                             >
-                              {buscandoSugerencia === fila.fechaActual ? 'Buscando...' : 'Sugerir'}
+                              Guardar
                             </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ color: comentariosDia[fila.fechaActual] ? 'inherit' : 'var(--texto-secundario)', fontStyle: comentariosDia[fila.fechaActual] ? 'normal' : 'italic' }}>
+                              {comentariosDia[fila.fechaActual] || 'Sin comentario'}
+                            </span>
+                            <button
+                              onClick={() => { setEditandoFecha(fila.fechaActual); setTextoTemp(comentariosDia[fila.fechaActual] || ''); }}
+                              style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}
+                            >
+                              Editar
+                            </button>
+                            {fila.fechaAnterior !== 'Primera aparición' && (
+                              <button
+                                onClick={() => sugerirComentario(fila.fechaAnterior, fila.fechaActual, fila.variacion)}
+                                disabled={buscandoSugerencia === fila.fechaActual}
+                                style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap', background: 'var(--imss-verde-claro)', border: '1px solid var(--imss-verde)', borderRadius: 4, color: 'var(--imss-verde-oscuro)' }}
+                              >
+                                {buscandoSugerencia === fila.fechaActual ? 'Buscando...' : 'Sugerir'}
+                              </button>
+                            )}
+                            {fila.fechaAnterior !== 'Primera aparición' && (
+                              <button
+                                onClick={() => verCentros(fila.fechaAnterior, fila.fechaActual)}
+                                disabled={cargandoCentros === fila.fechaActual}
+                                style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap', background: 'white', border: '1px solid var(--texto-secundario)', borderRadius: 4, color: 'var(--texto-secundario)' }}
+                              >
+                                {cargandoCentros === fila.fechaActual ? 'Buscando...' : centroExpandido === fila.fechaActual ? 'Ocultar centros' : 'Ver centros'}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                    {centroExpandido === fila.fechaActual && centrosPorFecha[fila.fechaActual] && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '6px 4px 14px 24px', background: '#f7f7f5' }}>
+                          {centrosPorFecha[fila.fechaActual].length === 0 ? (
+                            <p style={{ fontSize: 11, color: 'var(--texto-secundario)', margin: 0 }}>
+                              No hay desglose por centro de costo guardado para este rango de fechas.
+                            </p>
+                          ) : (
+                            <table style={{ width: '100%', maxWidth: 500, borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Centro de costo</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Anterior</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Nuevo</th>
+                                  <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--texto-secundario)', fontWeight: 500 }}>Variación</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {centrosPorFecha[fila.fechaActual].map((c, j) => (
+                                  <tr key={j}>
+                                    <td style={{ padding: '4px 6px' }}>{c.centro}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right' }}>{formatoMoneda(c.anterior)}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right' }}>{formatoMoneda(c.actual)}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right', color: c.variacion < 0 ? '#A32D2D' : '#27500A', fontWeight: 600 }}>
+                                      {formatoMoneda(c.variacion)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
